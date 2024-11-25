@@ -1,0 +1,8 @@
+*
+!/.gitignore
+!/_START.bat
+!/README.md
+!/ComfyUI
+!/ComfyUI/extra_model_paths.yaml
+!/ComfyUI/web
+!/ComfyUI/web/display.html
