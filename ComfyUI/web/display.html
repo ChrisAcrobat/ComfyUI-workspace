@@ -43,36 +43,30 @@
 				requestAnimationFrame(refreshHistory);
 				fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
 					historyKeys = Object.keys(result);
-					for (const key of Object.keys(result)) {
-						const history = result[key];
-						if(!Object.keys(history.outputs).length){
-							continue;
-						}
-						if('outputs' in history) {
-							for (const key in history['outputs']) {
-								if (Object.prototype.hasOwnProperty.call(history['outputs'], key)) {
-									const output = history['outputs'][key];
-									if(output.images){
-										for (const firstResultImage of output.images) {
-											var imageURL = 'http://127.0.0.1:8188/view?filename=' + firstResultImage['filename'] + '&subfolder=' + firstResultImage['subfolder'] + '&type=' + firstResultImage['type'];
-											for (const i of document.body.childNodes) {
-												if(i.src === imageURL){
-													imageURL = null;
-													break;
-												}
-											}
-											if(imageURL){
-												const image = new Image();
-												image.src = imageURL;
-												image.onerror = (e)=>{
-													e.srcElement.style.display = 'none';
-												};
-												document.body.prepend(image);
-												resize(image);
-												window.scrollTo(0, 0);
-											}
-										}
+					for (const keyResult of Object.keys(result)) {
+						const history = result[keyResult];
+						for (const keyOutputs of Object.keys(history.outputs)) {
+							const output = history.outputs[keyOutputs];
+							let index = 0;
+							for (const keyImages of Object.keys(output.images)) {
+								const imageResult = output.images[keyImages];
+								const animated = output.animated[index++];
+								let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
+								for (const i of document.body.childNodes) {
+									if(i.src === imageURL){
+										imageURL = null;
+										break;
 									}
+								}
+								if(imageURL){
+									const image = new Image();
+									image.src = imageURL;
+									image.onerror = (e)=>{
+										e.srcElement.style.display = 'none';
+									};
+									document.body.prepend(image);
+									resize(image);
+									window.scrollTo(0, 0);
 								}
 							}
 						}
