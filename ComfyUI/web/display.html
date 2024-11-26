@@ -50,7 +50,7 @@
 							let index = 0;
 							for (const keyImages of Object.keys(output.images)) {
 								const imageResult = output.images[keyImages];
-								const animated = output.animated[index++];
+								let animated = output.animated ? output.animated[index++] : false;
 								let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
 								for (const i of document.body.childNodes) {
 									if(i.src === imageURL){
