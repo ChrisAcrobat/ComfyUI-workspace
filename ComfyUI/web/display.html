@@ -9,8 +9,25 @@
 				margin: 0;
 			}
 
-			img {
+			.image-container {
+				position: relative;
 				vertical-align: top;
+				display: inline-block;
+			}
+
+			.image-container:hover .prompt-container {
+				display: unset;
+			}
+			.prompt-container {
+				display: none;
+				position: absolute;
+				top: 8px;
+				left: 8px;
+				font-size: large;
+				background-color: aliceblue;
+			}
+			.prompt-item>p {
+				margin-top: 0;
 			}
 
 			#settings {
@@ -37,6 +54,7 @@
 					v = 3;
 				}
 				inputImageWidth.valueAsNumber = v;
+				window.onresize = resizeAll;
 				requestAnimationFrame(refreshHistory);
 			}
 			function refreshHistory(){
@@ -53,18 +71,45 @@
 								let animated = output.animated ? output.animated[index++] : false;
 								let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
 								for (const i of document.body.childNodes) {
-									if(i.src === imageURL){
+									if([...document.getElementsByTagName('img')].find(img => img.src === imageURL)){
 										imageURL = null;
 										break;
 									}
 								}
 								if(imageURL){
+									const imageContainer = document.createElement('div');
+									imageContainer.classList.add('image-container');
 									const image = new Image();
+									imageContainer.prepend(image);
+									let promptCount = 1;
+									const promptContainer = document.createElement('div');
+									promptContainer.classList.add('prompt-container');
+									imageContainer.appendChild(promptContainer);
+									for (const prompt of history.prompt) {
+										if(typeof prompt === 'object'){
+											for (const keyPrompt of Object.keys(prompt)) {
+												const p = prompt[keyPrompt];
+												if(p.class_type === 'CLIPTextEncode'){
+													const promptItem = document.createElement('div');
+													promptItem.classList.add('prompt-item');
+													promptContainer.appendChild(promptItem);
+													let paragraph = document.createElement('label');
+													paragraph.innerText = 'Prompt '+promptCount++;
+													promptItem.appendChild(paragraph);
+													paragraph = document.createElement('p');
+													let code = document.createElement('code');
+													code.innerText = p.inputs.text
+													paragraph.appendChild(code);
+													promptItem.appendChild(paragraph);
+												}
+											}
+										}
+									}
 									image.src = imageURL;
 									image.onerror = (e)=>{
 										e.srcElement.style.display = 'none';
 									};
-									document.body.prepend(image);
+									document.body.prepend(imageContainer);
 									resize(image);
 									window.scrollTo(0, 0);
 								}
@@ -83,10 +128,9 @@
 					requestAnimationFrame(()=>resize(image));
 					return;
 				}
-				let container = image.parentElement;
 				const multiplier = inputImageWidth.valueAsNumber;
-				const width = container.clientWidth;
-				document.body.style.zoom = undefined;
+				const width = document.body.clientWidth;
+				image.style.zoom = undefined;
 				const imageStyle = getComputedStyle(image);
 				const imageMargin = parseFloat(imageStyle.marginRight.replace('px','')) + parseFloat(imageStyle.marginLeft.replace('px',''));
 				const zoom = ((width-imageMargin*multiplier) / (image.offsetWidth*multiplier))*100;
