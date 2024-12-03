@@ -15,16 +15,33 @@
 				display: inline-block;
 			}
 
+			.image-container:hover .btn-hide {
+				display: unset;
+			}
+			.btn-hide {
+				display: none;
+				position: absolute;
+				top: 8px;
+				right: 8px;
+			}
+
 			.image-container:hover .prompt-container {
 				display: unset;
 			}
 			.prompt-container {
 				display: none;
 				position: absolute;
-				top: 8px;
-				left: 8px;
+				top: 0px;
+				left: 0px;
+				margin: 8px;
 				font-size: large;
 				background-color: aliceblue;
+				opacity: 75%;
+			}
+			.prompt-item {
+				margin-top: 18px;
+				margin-left: 18px;
+				margin-right: 18px;
 			}
 			.prompt-item>p {
 				margin-top: 0;
@@ -105,6 +122,13 @@
 											}
 										}
 									}
+									const btnHide = document.createElement('button');
+									btnHide.classList.add('btn-hide');
+									btnHide.innerHTML = 'Hide';
+									btnHide.onclick = () => {
+										imageContainer.classList.add('hidden');
+									};
+									imageContainer.appendChild(btnHide);
 									image.src = imageURL;
 									image.onerror = (e)=>{
 										e.srcElement.style.display = 'none';
