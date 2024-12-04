@@ -12,7 +12,7 @@
 			.image-container {
 				position: relative;
 				vertical-align: top;
-				display: inline-block;
+				float: left;
 			}
 
 			.image-container:hover .btn-hide {
@@ -72,6 +72,7 @@
 				}
 				inputImageWidth.valueAsNumber = v;
 				window.onresize = resizeAll;
+				inputChange();
 				requestAnimationFrame(refreshHistory);
 			}
 			function refreshHistory(){
@@ -153,16 +154,18 @@
 					return;
 				}
 				const multiplier = inputImageWidth.valueAsNumber;
-				const width = document.body.clientWidth;
 				image.style.zoom = undefined;
 				const imageStyle = getComputedStyle(image);
-				const imageMargin = parseFloat(imageStyle.marginRight.replace('px','')) + parseFloat(imageStyle.marginLeft.replace('px',''));
-				const zoom = ((width-imageMargin*multiplier) / (image.offsetWidth*multiplier));
+				const zoom = document.body.clientWidth / (image.offsetWidth*multiplier);
 				image.style.zoom = (zoom*100)+'%';
-				document.getElementById('spnMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
+				document.getElementById('spnLastImageMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
 			}
 			function inputChange(event){
 				localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
+				
+				const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
+				document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth);
+				document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
 				resizeAll();
 			}
 		</script>
@@ -174,7 +177,9 @@
 					Image width:
 				</label>
 				<input id="inputImageWidth" value="2" name="Image width" type="number" step="any" min="1" onchange="inputChange()"/>
-				<br>Max height: <span id="spnMaxHeight"></span>
+				<br>Image width: <span id="spnImageWidth"></span>
+				<br>Max height: <span id="spnImageMaxHeight"></span>
+				<br>Last image max height: <span id="spnLastImageMaxHeight"></span>
 			</div>
 		</form>
 	</body>
