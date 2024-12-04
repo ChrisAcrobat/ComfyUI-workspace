@@ -157,8 +157,9 @@
 				image.style.zoom = undefined;
 				const imageStyle = getComputedStyle(image);
 				const imageMargin = parseFloat(imageStyle.marginRight.replace('px','')) + parseFloat(imageStyle.marginLeft.replace('px',''));
-				const zoom = ((width-imageMargin*multiplier) / (image.offsetWidth*multiplier))*100;
-				image.style.zoom = zoom+'%';
+				const zoom = ((width-imageMargin*multiplier) / (image.offsetWidth*multiplier));
+				image.style.zoom = (zoom*100)+'%';
+				document.getElementById('spnMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
 			}
 			function inputChange(event){
 				localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
@@ -173,6 +174,7 @@
 					Image width:
 				</label>
 				<input id="inputImageWidth" value="2" name="Image width" type="number" step="any" min="1" onchange="inputChange()"/>
+				<br>Max height: <span id="spnMaxHeight"></span>
 			</div>
 		</form>
 	</body>
