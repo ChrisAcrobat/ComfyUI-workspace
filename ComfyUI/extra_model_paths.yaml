@@ -1,2 +1,2 @@
 comfyui:
-  checkpoints: ../models/
+  checkpoints: ../../models/
