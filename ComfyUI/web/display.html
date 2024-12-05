@@ -48,10 +48,11 @@
 			}
 
 			#settings {
-				position: absolute;
+				position: fixed;
 				bottom: 0px;
 				right: 0px;
 				background: white;
+				margin: 0;
 				padding: 4px;
 				opacity: 0;
 			}
@@ -65,7 +66,107 @@
 		</style>
 		<script type="text/javascript">
 			function onload(){
+				function refreshHistory(){
+					requestAnimationFrame(refreshHistory);
+					fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
+						historyKeys = Object.keys(result);
+						for (const keyResult of Object.keys(result)) {
+							const history = result[keyResult];
+							for (const keyOutputs of Object.keys(history.outputs)) {
+								const output = history.outputs[keyOutputs];
+								let index = 0;
+								for (const keyImages of Object.keys(output.images)) {
+									const imageResult = output.images[keyImages];
+									let animated = output.animated ? output.animated[index++] : false;
+									let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
+									for (const i of document.body.childNodes) {
+										if(images.find(i => i.src === imageURL)){
+											imageURL = null;
+											break;
+										}
+									}
+									if(imageURL){
+										const imageContainer = document.createElement('div');
+										imageContainer.classList.add('image-container');
+										const image = new Image();
+										images.push(image);
+										imageContainer.prepend(image);
+										let promptCount = 1;
+										const promptContainer = document.createElement('div');
+										promptContainer.classList.add('prompt-container');
+										imageContainer.appendChild(promptContainer);
+										for (const prompt of history.prompt) {
+											if(typeof prompt === 'object'){
+												for (const keyPrompt of Object.keys(prompt)) {
+													const p = prompt[keyPrompt];
+													if(p.class_type === 'CLIPTextEncode'){
+														const promptItem = document.createElement('div');
+														promptItem.classList.add('prompt-item');
+														promptContainer.appendChild(promptItem);
+														let paragraph = document.createElement('label');
+														paragraph.innerText = 'Prompt '+promptCount++;
+														promptItem.appendChild(paragraph);
+														paragraph = document.createElement('p');
+														let code = document.createElement('code');
+														code.innerText = p.inputs.text
+														paragraph.appendChild(code);
+														promptItem.appendChild(paragraph);
+													}
+												}
+											}
+										}
+										const btnHide = document.createElement('button');
+										btnHide.classList.add('btn-hide');
+										btnHide.innerHTML = 'Hide';
+										btnHide.onclick = () => {
+											imageContainer.classList.add('hidden');
+											resizeAll();
+										};
+										imageContainer.appendChild(btnHide);
+										image.src = imageURL;
+										image.onload = ()=>{
+											resize(image);
+										}
+										image.onerror = ()=>{
+											imageContainer.classList.add('hidden');
+										};
+										document.body.prepend(imageContainer);
+										if(inputScrollToTop.checked){
+											window.scrollTo(0, 0);
+										}
+									}
+								}
+							}
+						}
+					});
+				}
+				function resizeAll(){
+					for(const image of images.filter(i => !i.parentElement.classList.contains('hidden'))) {
+						resize(image);
+					}
+				}
+				function resize(image){
+					const multiplier = inputImageWidth.valueAsNumber*1.0;
+					const imageStyle = getComputedStyle(image);
+					const zoom = document.body.clientWidth / (image.offsetWidth*multiplier);
+					image.width = document.body.clientWidth/multiplier;
+					document.getElementById('spnLastImageMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
+				}
+				function inputChange(event){
+					localStorage.setItem('inputScrollToTop', inputScrollToTop.checked);
+					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
+					
+					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
+					document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth);
+					document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
+					resizeAll();
+				}
+				const images = [];
+				const inputScrollToTop = document.getElementById('inputScrollToTop');
+				inputScrollToTop.addEventListener('change', inputChange);
+				inputScrollToTop.checked = localStorage.getItem('inputScrollToTop') === 'true';
 				const inputImageWidth = document.getElementById('inputImageWidth');
+				inputImageWidth.addEventListener('change', inputChange);
 				let v = parseInt(localStorage.getItem('inputImageWidth'));
 				if(isNaN(v)){
 					v = 3;
@@ -75,108 +176,21 @@
 				inputChange();
 				requestAnimationFrame(refreshHistory);
 			}
-			function refreshHistory(){
-				requestAnimationFrame(refreshHistory);
-				fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
-					historyKeys = Object.keys(result);
-					for (const keyResult of Object.keys(result)) {
-						const history = result[keyResult];
-						for (const keyOutputs of Object.keys(history.outputs)) {
-							const output = history.outputs[keyOutputs];
-							let index = 0;
-							for (const keyImages of Object.keys(output.images)) {
-								const imageResult = output.images[keyImages];
-								let animated = output.animated ? output.animated[index++] : false;
-								let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
-								for (const i of document.body.childNodes) {
-									if([...document.getElementsByTagName('img')].find(img => img.src === imageURL)){
-										imageURL = null;
-										break;
-									}
-								}
-								if(imageURL){
-									const imageContainer = document.createElement('div');
-									imageContainer.classList.add('image-container');
-									const image = new Image();
-									imageContainer.prepend(image);
-									let promptCount = 1;
-									const promptContainer = document.createElement('div');
-									promptContainer.classList.add('prompt-container');
-									imageContainer.appendChild(promptContainer);
-									for (const prompt of history.prompt) {
-										if(typeof prompt === 'object'){
-											for (const keyPrompt of Object.keys(prompt)) {
-												const p = prompt[keyPrompt];
-												if(p.class_type === 'CLIPTextEncode'){
-													const promptItem = document.createElement('div');
-													promptItem.classList.add('prompt-item');
-													promptContainer.appendChild(promptItem);
-													let paragraph = document.createElement('label');
-													paragraph.innerText = 'Prompt '+promptCount++;
-													promptItem.appendChild(paragraph);
-													paragraph = document.createElement('p');
-													let code = document.createElement('code');
-													code.innerText = p.inputs.text
-													paragraph.appendChild(code);
-													promptItem.appendChild(paragraph);
-												}
-											}
-										}
-									}
-									const btnHide = document.createElement('button');
-									btnHide.classList.add('btn-hide');
-									btnHide.innerHTML = 'Hide';
-									btnHide.onclick = () => {
-										imageContainer.classList.add('hidden');
-									};
-									imageContainer.appendChild(btnHide);
-									image.src = imageURL;
-									image.onerror = (e)=>{
-										e.srcElement.style.display = 'none';
-									};
-									document.body.prepend(imageContainer);
-									resize(image);
-									window.scrollTo(0, 0);
-								}
-							}
-						}
-					}
-				});
-			}
-			function resizeAll(){
-				for (const image of document.getElementsByTagName('img')) {
-					resize(image)
-				}
-			}
-			function resize(image){
-				if(!image.offsetWidth){
-					requestAnimationFrame(()=>resize(image));
-					return;
-				}
-				const multiplier = inputImageWidth.valueAsNumber;
-				image.style.zoom = undefined;
-				const imageStyle = getComputedStyle(image);
-				const zoom = document.body.clientWidth / (image.offsetWidth*multiplier);
-				image.style.zoom = (zoom*100)+'%';
-				document.getElementById('spnLastImageMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
-			}
-			function inputChange(event){
-				localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
-				
-				const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
-				document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth);
-				document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
-				resizeAll();
-			}
 		</script>
 	</head>
 	<body onload="onload()">
 		<form id="settings">
 			<div>
-				<label for="inputImageWidth">
-					Image width:
+				<label for="inputScrollToTop">
+					Scroll to top:
 				</label>
-				<input id="inputImageWidth" value="2" name="Image width" type="number" step="any" min="1" onchange="inputChange()"/>
+				<input id="inputScrollToTop" name="Scroll to top" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputImageWidth">
+					Images per row:
+				</label>
+				<input id="inputImageWidth" name="Image width" type="number" step="any" min="1"/>
 				<br>Image width: <span id="spnImageWidth"></span>
 				<br>Max height: <span id="spnImageMaxHeight"></span>
 				<br>Last image max height: <span id="spnLastImageMaxHeight"></span>
