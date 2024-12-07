@@ -164,7 +164,7 @@
 				const images = [];
 				const inputScrollToTop = document.getElementById('inputScrollToTop');
 				inputScrollToTop.addEventListener('change', inputChange);
-				inputScrollToTop.checked = localStorage.getItem('inputScrollToTop') === 'true';
+				inputScrollToTop.checked = ['', 'true'].contains(localStorage.getItem('inputScrollToTop'));
 				const inputImageWidth = document.getElementById('inputImageWidth');
 				inputImageWidth.addEventListener('change', inputChange);
 				let v = parseInt(localStorage.getItem('inputImageWidth'));
