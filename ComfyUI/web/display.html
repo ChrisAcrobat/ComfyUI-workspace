@@ -94,6 +94,10 @@
 										let promptCount = 1;
 										const promptContainer = document.createElement('div');
 										promptContainer.classList.add('prompt-container');
+										promptContainer.style.display = 'unset';
+										setTimeout(()=>{
+											promptContainer.style.display = null;
+										}, 3000);
 										imageContainer.appendChild(promptContainer);
 										for (const prompt of history.prompt) {
 											if(typeof prompt === 'object'){
@@ -164,7 +168,7 @@
 				const images = [];
 				const inputScrollToTop = document.getElementById('inputScrollToTop');
 				inputScrollToTop.addEventListener('change', inputChange);
-				inputScrollToTop.checked = ['', 'true'].contains(localStorage.getItem('inputScrollToTop'));
+				inputScrollToTop.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToTop'));
 				const inputImageWidth = document.getElementById('inputImageWidth');
 				inputImageWidth.addEventListener('change', inputChange);
 				let v = parseInt(localStorage.getItem('inputImageWidth'));
