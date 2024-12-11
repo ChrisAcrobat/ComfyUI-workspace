@@ -94,9 +94,9 @@
 										const promptContainer = document.createElement('div');
 										promptContainer.classList.add('prompt-container');
 										if(inputSplashPrompt.valueAsNumber){
-										promptContainer.style.display = 'unset';
-										setTimeout(()=>{
-											promptContainer.style.display = null;
+											promptContainer.style.display = 'unset';
+											setTimeout(()=>{
+												promptContainer.style.display = null;
 											}, 1000*inputSplashPrompt.valueAsNumber);
 										}
 										imageContainer.appendChild(promptContainer);
@@ -149,22 +149,24 @@
 				}
 				function resizeAll(){
 					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
-					document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth/8)*8;
-					document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
+					document.getElementById('spnImageWidth').innerText = Math.ceil((imageWidth/8)*inputImageScale.valueAsNumber)*8;
+					document.getElementById('spnImageHeight').innerText = Math.floor((document.body.clientHeight/8/inputImageHeight.valueAsNumber)*inputImageScale.valueAsNumber)*8;
 					for(const image of images.filter(i => !i.parentElement.classList.contains('hidden'))) {
 						resize(image);
 					}
 				}
 				function resize(image){
-					const multiplier = inputImageWidth.valueAsNumber*1.0;
+					const multiplier = inputImageWidth.valueAsNumber;
 					const imageStyle = getComputedStyle(image);
 					const zoom = document.body.clientWidth / (image.offsetWidth*multiplier);
 					image.width = document.body.clientWidth/multiplier;
-					document.getElementById('spnLastImageMaxHeight').innerText = Math.floor(document.body.clientHeight / zoom);
 				}
 				function inputChange(event){
 					localStorage.setItem('inputScrollToTop', inputScrollToTop.checked);
 					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
+					localStorage.setItem('inputImageScale', inputImageScale.valueAsNumber);
+					localStorage.setItem('inputImageHeight', inputImageHeight.valueAsNumber);
+					localStorage.setItem('inputSplashPrompt', inputSplashPrompt.valueAsNumber);
 					resizeAll();
 				}
 				const images = [];
@@ -186,6 +188,20 @@
 					v = 3;
 				}
 				inputImageWidth.valueAsNumber = v;
+				const inputImageHeight = document.getElementById('inputImageHeight');
+				inputImageHeight.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageHeight'));
+				if(isNaN(v)){
+					v = 2;
+				}
+				inputImageHeight.valueAsNumber = v;
+				const inputImageScale = document.getElementById('inputImageScale');
+				inputImageScale.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageScale'));
+				if(isNaN(v)){
+					v = 1;
+				}
+				inputImageScale.valueAsNumber = v;
 				window.onresize = resizeAll;
 				inputChange();
 				requestAnimationFrame(refreshHistory);
@@ -194,6 +210,12 @@
 	</head>
 	<body onload="onload()">
 		<form id="settings">
+			<div>
+				<label for="inputImageWidth">
+					Images per row:
+				</label>
+				<input id="inputImageWidth" name="Image width" type="number" step="any" min="1"/>
+			</div>
 			<div>
 				<label for="inputScrollToTop">
 					Scroll to top:
@@ -207,13 +229,21 @@
 				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
 			</div>
 			<div>
-				<label for="inputImageWidth">
-					Images per row:
-				</label>
-				<input id="inputImageWidth" name="Image width" type="number" step="any" min="1"/>
-				<br>Image width: <span id="spnImageWidth"></span>
-				<br>Max height: <span id="spnImageMaxHeight"></span>
-				<br>Last image max height: <span id="spnLastImageMaxHeight"></span>
+				<hr>
+					<div>
+					<label for="inputImageScale">
+						Image scale %:
+					</label>
+					<input id="inputImageScale" name="Image scale" type="number" step="0.1"/>
+				</div>
+				<div>
+					<label for="inputImageHeight">
+						Images per column:
+					</label>
+					<input id="inputImageHeight" name="Image per column" type="number" step="any" min="1"/>
+				</div>
+				Image width: <span id="spnImageWidth"></span>
+				<br>Image height: <span id="spnImageHeight"></span>
 			</div>
 		</form>
 	</body>
