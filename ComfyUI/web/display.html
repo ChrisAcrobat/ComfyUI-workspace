@@ -93,10 +93,12 @@
 										let promptCount = 1;
 										const promptContainer = document.createElement('div');
 										promptContainer.classList.add('prompt-container');
+										if(inputSplashPrompt.valueAsNumber){
 										promptContainer.style.display = 'unset';
 										setTimeout(()=>{
 											promptContainer.style.display = null;
-										}, 3000);
+											}, 1000*inputSplashPrompt.valueAsNumber);
+										}
 										imageContainer.appendChild(promptContainer);
 										for (const prompt of history.prompt) {
 											if(typeof prompt === 'object'){
@@ -167,12 +169,20 @@
 					resizeAll();
 				}
 				const images = [];
+				let v;
 				const inputScrollToTop = document.getElementById('inputScrollToTop');
 				inputScrollToTop.addEventListener('change', inputChange);
 				inputScrollToTop.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToTop'));
+				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
+				inputSplashPrompt.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputSplashPrompt'));
+				if(isNaN(v)){
+					v = 3;
+				}
+				inputSplashPrompt.valueAsNumber = v;
 				const inputImageWidth = document.getElementById('inputImageWidth');
 				inputImageWidth.addEventListener('change', inputChange);
-				let v = parseInt(localStorage.getItem('inputImageWidth'));
+				v = parseInt(localStorage.getItem('inputImageWidth'));
 				if(isNaN(v)){
 					v = 3;
 				}
@@ -190,6 +200,12 @@
 					Scroll to top:
 				</label>
 				<input id="inputScrollToTop" name="Scroll to top" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputSplashPrompt">
+					Splash prompt (seconds):
+				</label>
+				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
 			</div>
 			<div>
 				<label for="inputImageWidth">
