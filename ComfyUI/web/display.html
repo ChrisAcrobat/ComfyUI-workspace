@@ -148,6 +148,9 @@
 					});
 				}
 				function resizeAll(){
+					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
+					document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth/8)*8;
+					document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
 					for(const image of images.filter(i => !i.parentElement.classList.contains('hidden'))) {
 						resize(image);
 					}
@@ -162,10 +165,6 @@
 				function inputChange(event){
 					localStorage.setItem('inputScrollToTop', inputScrollToTop.checked);
 					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
-					
-					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
-					document.getElementById('spnImageWidth').innerText = Math.ceil(imageWidth);
-					document.getElementById('spnImageMaxHeight').innerText = Math.floor(document.body.clientHeight);
 					resizeAll();
 				}
 				const images = [];
