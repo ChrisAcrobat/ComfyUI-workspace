@@ -59,6 +59,19 @@
 			#settings:hover {
 				opacity: 1;
 			}
+			#settings fieldset {
+				border-width: 0;
+				border-top-width: unset;
+				padding-left: 0;
+				padding-right: 0;
+				padding-bottom: 0;
+			}
+			#settings fieldset legend {
+				margin-left: 12;
+			}
+			#divPixelCount {
+				float: right;
+			}
 
 			.hidden {
 				display: none;
@@ -147,10 +160,34 @@
 						requestAnimationFrame(refreshHistory);
 					});
 				}
-				function resizeAll(){
+				function updateHelpers(){
+					function gcd(a, b){
+						return b === 0 ? a : gcd(b, a%b);
+					}
 					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
-					document.getElementById('spnImageWidth').innerText = Math.ceil((imageWidth/8)*inputImageScale.valueAsNumber)*8;
-					document.getElementById('spnImageHeight').innerText = Math.floor((document.body.clientHeight/8/inputImageHeight.valueAsNumber)*inputImageScale.valueAsNumber)*8;
+					const width = Math.ceil(imageWidth/8)*8;
+					const height = Math.floor(document.body.clientHeight/8/inputImageHeight.valueAsNumber)*8;
+					const d = [width, height].reduce(gcd);
+					const lWidth = Math.ceil(width/d)*8;
+					const lHeight = Math.floor(height/d)*8;
+					let c = 0;
+					let min = 0;
+					while(min < 16){
+						c++;
+						min += Math.min(lWidth, lHeight)
+					}
+					const minStep = (width / lWidth) - c;
+					inputImageScale.min = -minStep;
+					const w = width + lWidth*inputImageScale.valueAsNumber;
+					const h = height + lHeight*inputImageScale.valueAsNumber;
+					const ratio = w / width;
+					document.getElementById('spnImageWidth').innerText = w;
+					document.getElementById('spnImageHeight').innerText = h;
+					document.getElementById('spnImageWidthPercent').innerText = '('+Math.round(ratio*100)+' %)';
+					document.getElementById('spnPixelCount').innerText = w*h;
+				}
+				function resizeAll(){
+					updateHelpers();
 					for(const image of images.filter(i => !i.parentElement.classList.contains('hidden'))) {
 						resize(image);
 					}
@@ -199,7 +236,7 @@
 				inputImageScale.addEventListener('change', inputChange);
 				v = parseInt(localStorage.getItem('inputImageScale'));
 				if(isNaN(v)){
-					v = 1;
+					v = 0;
 				}
 				inputImageScale.valueAsNumber = v;
 				window.onresize = resizeAll;
@@ -228,13 +265,16 @@
 				</label>
 				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
 			</div>
-			<div>
-				<hr>
-					<div>
+			<fieldset>
+				<legend>
+					Helpers
+				</legend>
+				<div>
 					<label for="inputImageScale">
-						Image scale %:
+						Image scale:
 					</label>
-					<input id="inputImageScale" name="Image scale" type="number" step="0.1"/>
+					<input id="inputImageScale" name="Image scale" type="number" step="1"/>
+					<span id="spnImageWidthPercent"></span>
 				</div>
 				<div>
 					<label for="inputImageHeight">
@@ -244,7 +284,8 @@
 				</div>
 				Image width: <span id="spnImageWidth"></span>
 				<br>Image height: <span id="spnImageHeight"></span>
-			</div>
+				<div id="divPixelCount">Pixel count: <span id="spnPixelCount"></span></div>
+			</fieldset>
 		</form>
 	</body>
 </html>
