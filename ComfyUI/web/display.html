@@ -254,7 +254,7 @@
 				inputPromptPopup.addEventListener('change', ()=>{
 					inputSplashPrompt.disabled = inputPromptPopup.checked;
 					if(inputPromptPopup.checked){
-						inputPromptPopup.__promptWindow = open('prompts.html', 'prompts', 'popup');
+						inputPromptPopup.__promptWindow = open('prompthistory.html', 'Prompt history', 'popup');
 						inputPromptPopup.__promptWindow.addEventListener('load', ()=>{
 							[...document.getElementsByClassName('prompt-container')].reverse().forEach(promptContainer => post(promptContainer));
 							inputPromptPopup.__promptWindow.addEventListener('unload', ()=>{
@@ -318,7 +318,7 @@
 				<label for="inputPromptPopup">
 					Open prompts in separate window:
 				</label>
-				<input id="inputPromptPopup" name="display prompts in separate window" type="checkbox"/>
+				<input id="inputPromptPopup" name="Open prompts in separate window" type="checkbox"/>
 			</div>
 			<fieldset>
 				<legend>

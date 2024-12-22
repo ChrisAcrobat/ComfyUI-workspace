@@ -6,4 +6,4 @@
 !/ComfyUI/extra_model_paths.yaml
 !/ComfyUI/web
 !/ComfyUI/web/display.html
-!/ComfyUI/web/prompts.html
+!/ComfyUI/web/prompthistory.html
