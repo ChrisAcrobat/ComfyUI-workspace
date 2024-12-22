@@ -83,10 +83,11 @@
 			}
 		</style>
 		<script type="text/javascript">
+			'use strict'
 			function onload(){
 				function refreshHistory(){
 					fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
-						historyKeys = Object.keys(result);
+						const historyKeys = Object.keys(result);
 						for (const keyResult of Object.keys(result)) {
 							const history = result[keyResult];
 							for (const keyOutputs of Object.keys(history.outputs)) {
@@ -104,22 +105,17 @@
 									}
 									if(imageURL){
 										const imageContainer = document.createElement('div');
+										imageContainer.id = 'container-'+imageURL;
 										imageContainer.classList.add('image-container');
 										const image = new Image();
 										images.push(image);
-										imageContainer.prepend(image);
+										imageContainer.appendChild(image);
 										const promptContainer = document.createElement('div');
 										promptContainer.classList.add('prompt-container');
-										if(inputSplashPrompt.valueAsNumber){
-											promptContainer.style.display = 'unset';
-											setTimeout(()=>{
-												promptContainer.style.display = null;
-											}, 1000*inputSplashPrompt.valueAsNumber);
-										}
 										imageContainer.appendChild(promptContainer);
-										for (const prompt of history.prompt) {
+										for(const prompt of history.prompt){
 											if(typeof prompt === 'object'){
-												for (const keyPrompt of Object.keys(prompt)) {
+												for (const keyPrompt of Object.keys(prompt)){
 													const p = prompt[keyPrompt];
 													if(p.class_type === 'CLIPTextEncode'){
 														const promptItem = document.createElement('div');
@@ -137,11 +133,22 @@
 												}
 											}
 										}
+										if(inputPromptPopup.checked){
+											post(promptContainer);
+										}else if(inputSplashPrompt.valueAsNumber){
+											promptContainer.style.display = 'unset';
+											setTimeout(()=>{
+												promptContainer.style.display = null;
+											}, 1000*inputSplashPrompt.valueAsNumber);
+										}
 										const btnHide = document.createElement('button');
 										btnHide.classList.add('btn-hide');
 										btnHide.innerHTML = 'Hide';
 										btnHide.onclick = () => {
 											imageContainer.classList.add('hidden');
+											if(inputPromptPopup.__promptWindow){
+												inputPromptPopup.__promptWindow.postMessage({type: 'Hide', id: promptContainer.parentElement.id}, location.origin);
+											}
 											resizeAll();
 										};
 										imageContainer.appendChild(btnHide);
@@ -165,9 +172,17 @@
 						requestAnimationFrame(refreshHistory);
 					});
 				}
+				function post(promptContainer){
+					if(inputPromptPopup.__promptWindow){
+						inputPromptPopup.__promptWindow.postMessage({type: 'Add', id: promptContainer.parentElement.id, data: promptContainer.innerHTML}, location.origin);
+					}
+				}
 				function updateImageCount(){
 					let count = ''+images.filter(i => !i.parentElement.classList.contains('hidden')).length;
-					count += ' (Hidden: '+images.filter(i => i.parentElement.classList.contains('hidden')).length+')';
+					const hidden = images.filter(i => i.parentElement.classList.contains('hidden')).length;
+					if(hidden){
+						count += ' (Hidden: '+hidden+')';
+					}
 					document.getElementById('spnNumberOfImages').innerText = count;
 				}
 				function updateHelpers(){
@@ -229,6 +244,28 @@
 					v = 3;
 				}
 				inputSplashPrompt.valueAsNumber = v;
+				const inputPromptPopup = document.getElementById('inputPromptPopup');
+				window.addEventListener('beforeunload', (event)=>{
+					if(inputPromptPopup.__promptWindow){
+						inputPromptPopup.__promptWindow.close();
+					}
+				});
+				inputPromptPopup.addEventListener('change', ()=>{
+					inputSplashPrompt.disabled = inputPromptPopup.checked;
+					if(inputPromptPopup.checked){
+						inputPromptPopup.__promptWindow = open('prompts.html', 'prompts', 'popup');
+						inputPromptPopup.__promptWindow.addEventListener('load', ()=>{
+							[...document.getElementsByClassName('prompt-container')].reverse().forEach(promptContainer => post(promptContainer));
+							inputPromptPopup.__promptWindow.addEventListener('unload', ()=>{
+								inputPromptPopup.checked = false;
+								inputPromptPopup.dispatchEvent(new Event('change'));
+							});
+						});
+					}else{
+						inputPromptPopup.__promptWindow.close();
+					}
+					inputChange();
+				});
 				const inputImageWidth = document.getElementById('inputImageWidth');
 				inputImageWidth.addEventListener('change', inputChange);
 				v = parseInt(localStorage.getItem('inputImageWidth'));
@@ -275,6 +312,12 @@
 					Splash prompt (seconds):
 				</label>
 				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
+			</div>
+			<div>
+				<label for="inputPromptPopup">
+					Open prompts in separate window:
+				</label>
+				<input id="inputPromptPopup" name="display prompts in separate window" type="checkbox"/>
 			</div>
 			<fieldset>
 				<legend>

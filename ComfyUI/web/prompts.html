@@ -32,54 +32,22 @@
 			}
 		</style>
 		<script type="text/javascript">
+			'use strict'
 			function onload(){
-				function refreshHistory(){
-					fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
-						historyKeys = Object.keys(result);
-						for (const keyResult of Object.keys(result)) {
-							const history = result[keyResult];
-							for (const keyOutputs of Object.keys(history.outputs)) {
-								const output = history.outputs[keyOutputs];
-								let index = 0;
-								for (const keyImages of Object.keys(output.images)) {
-									const imageResult = output.images[keyImages];
-									const animated = output.animated ? output.animated[index++] : false;
-									const imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
-									let promptContainer = document.getElementById(imageURL);
-									if(!promptContainer){
-										promptContainer = document.createElement('div');
-										promptContainer.id = imageURL;
-										promptContainer.classList.add('prompt-container');
-										for (const prompt of history.prompt) {
-											if(typeof prompt === 'object'){
-												for (const keyPrompt of Object.keys(prompt)) {
-													const p = prompt[keyPrompt];
-													if(p.class_type === 'CLIPTextEncode'){
-														const promptItem = document.createElement('div');
-														promptItem.classList.add('prompt-item');
-														promptContainer.appendChild(promptItem);
-														let paragraph = document.createElement('label');
-														paragraph.innerText = 'Prompt '+keyPrompt;
-														promptItem.appendChild(paragraph);
-														paragraph = document.createElement('p');
-														let code = document.createElement('code');
-														code.innerText = p.inputs.text
-														paragraph.appendChild(code);
-														promptItem.appendChild(paragraph);
-													}
-												}
-											}
-										}
-										document.body.prepend(promptContainer);
-									}
-								}
-							}
+				window.onmessage = messageEvent => {
+					if(messageEvent.data.type === 'Add'){
+						const promptContainer = document.createElement('div');
+						promptContainer.id = messageEvent.data.id;
+						promptContainer.classList.add('prompt-container');
+						promptContainer.innerHTML = messageEvent.data.data;
+						document.body.prepend(promptContainer);
+					}else if(messageEvent.data.type === 'Hide'){
+						const promptContainer = document.getElementById(messageEvent.data.id);
+						if(promptContainer){
+							promptContainer.classList.add('hidden');
 						}
-					}).finally(()=>{
-						requestAnimationFrame(refreshHistory);
-					});
+					}
 				}
-				requestAnimationFrame(refreshHistory);
 			}
 		</script>
 	</head>
