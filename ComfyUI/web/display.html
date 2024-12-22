@@ -69,8 +69,13 @@
 			#settings fieldset legend {
 				margin-left: 12;
 			}
+			#divImageWidthHeight {
+				position: relative;
+			}
 			#divPixelCount {
-				float: right;
+				position: absolute;
+				right: 0px;
+				bottom: 0;
 			}
 
 			.hidden {
@@ -89,7 +94,7 @@
 								let index = 0;
 								for (const keyImages of Object.keys(output.images)) {
 									const imageResult = output.images[keyImages];
-									let animated = output.animated ? output.animated[index++] : false;
+									const animated = output.animated ? output.animated[index++] : false;
 									let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
 									for (const i of document.body.childNodes) {
 										if(images.find(i => i.src === imageURL)){
@@ -103,7 +108,6 @@
 										const image = new Image();
 										images.push(image);
 										imageContainer.prepend(image);
-										let promptCount = 1;
 										const promptContainer = document.createElement('div');
 										promptContainer.classList.add('prompt-container');
 										if(inputSplashPrompt.valueAsNumber){
@@ -122,7 +126,7 @@
 														promptItem.classList.add('prompt-item');
 														promptContainer.appendChild(promptItem);
 														let paragraph = document.createElement('label');
-														paragraph.innerText = 'Prompt '+promptCount++;
+														paragraph.innerText = 'Prompt '+keyPrompt;
 														promptItem.appendChild(paragraph);
 														paragraph = document.createElement('p');
 														let code = document.createElement('code');
@@ -143,6 +147,7 @@
 										imageContainer.appendChild(btnHide);
 										image.src = imageURL;
 										image.onload = ()=>{
+											updateImageCount();
 											resize(image);
 										}
 										image.onerror = ()=>{
@@ -160,10 +165,16 @@
 						requestAnimationFrame(refreshHistory);
 					});
 				}
+				function updateImageCount(){
+					let count = ''+images.filter(i => !i.parentElement.classList.contains('hidden')).length;
+					count += ' (Hidden: '+images.filter(i => i.parentElement.classList.contains('hidden')).length+')';
+					document.getElementById('spnNumberOfImages').innerText = count;
+				}
 				function updateHelpers(){
 					function gcd(a, b){
 						return b === 0 ? a : gcd(b, a%b);
 					}
+					updateImageCount();
 					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
 					const width = Math.ceil(imageWidth/8)*8;
 					const height = Math.floor(document.body.clientHeight/8/inputImageHeight.valueAsNumber)*8;
@@ -282,9 +293,26 @@
 					</label>
 					<input id="inputImageHeight" name="Image per column" type="number" step="any" min="1"/>
 				</div>
-				Image width: <span id="spnImageWidth"></span>
-				<br>Image height: <span id="spnImageHeight"></span>
-				<div id="divPixelCount">Pixel count: <span id="spnPixelCount"></span></div>
+				<div id="divImageWidthHeight">
+					<div>
+						Image width: <span id="spnImageWidth"></span>
+						<br>Image height: <span id="spnImageHeight"></span>
+					</div>
+					<div id="divPixelCount">
+						Pixel count: <span id="spnPixelCount"></span>
+					</div>
+				</div>
+			</fieldset>
+			<fieldset>
+				<legend>
+					Information
+				</legend>
+				<div>
+					<label for="spnNumberOfImages">
+						Number of images:
+					</label>
+					<span id="spnNumberOfImages"></span>
+				</div>
 			</fieldset>
 		</form>
 	</body>
