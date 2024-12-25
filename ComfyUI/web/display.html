@@ -240,7 +240,7 @@
 				inputScrollToTop.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToTop'));
 				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
 				inputSplashPrompt.addEventListener('change', inputChange);
-				v = parseInt(localStorage.getItem('inputSplashPrompt'));
+				v = parseFloat(localStorage.getItem('inputSplashPrompt'));
 				if(isNaN(v)){
 					v = 3;
 				}
