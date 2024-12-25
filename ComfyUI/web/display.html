@@ -173,6 +173,42 @@
 						requestAnimationFrame(refreshHistory);
 					});
 				}
+				let scrollEvent_time = 0;
+				let scrollEvent_timeLast = 0;
+				let scrollEvent_top = 0;
+				let scrollEvent_topLast = 0;
+				function scrollEvent(){
+					requestAnimationFrame(scrollEvent);
+					if(!inputScrollToNextImage.checked){
+						scrollEvent_timeLast = scrollEvent_time;
+						return;
+					}
+					if(scrollEvent_time == scrollEvent_timeLast){
+						return;
+					}
+					if(Date.now() < scrollEvent_time + 100){
+						return;
+					}
+					const scrollUp = scrollEvent_top < scrollEvent_topLast;
+					let lastImageContainer;
+					for(const imageContainer of document.getElementsByClassName('image-container')){
+						if((scrollUp ? 1 : -1) <= imageContainer.getBoundingClientRect().top){
+							if(scrollUp){
+								if(lastImageContainer){
+									lastImageContainer.scrollIntoView({behavior: 'smooth'});
+								}else{
+									window.scrollTo(0, 0);
+								}
+							}else{
+								imageContainer.scrollIntoView({behavior: 'smooth'});
+							}
+							break;
+						}
+						lastImageContainer = imageContainer;
+					}
+					scrollEvent_timeLast = scrollEvent_time;
+					scrollEvent_topLast = scrollEvent_top;
+				}
 				function post(promptContainer){
 					if(inputPromptPopup.__promptWindow){
 						inputPromptPopup.__promptWindow.postMessage({type: 'Add', id: promptContainer.parentElement.id, data: promptContainer.innerHTML}, location.origin);
@@ -227,6 +263,7 @@
 				}
 				function inputChange(event){
 					localStorage.setItem('inputScrollToTop', inputScrollToTop.checked);
+					localStorage.setItem('inputScrollToNextImage', inputScrollToNextImage.checked);
 					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
 					localStorage.setItem('inputImageScale', inputImageScale.valueAsNumber);
 					localStorage.setItem('inputImageHeight', inputImageHeight.valueAsNumber);
@@ -238,6 +275,9 @@
 				const inputScrollToTop = document.getElementById('inputScrollToTop');
 				inputScrollToTop.addEventListener('change', inputChange);
 				inputScrollToTop.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToTop'));
+				const inputScrollToNextImage = document.getElementById('inputScrollToNextImage');
+				inputScrollToNextImage.addEventListener('change', inputChange);
+				inputScrollToNextImage.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToNextImage'));
 				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
 				inputSplashPrompt.addEventListener('change', inputChange);
 				v = parseFloat(localStorage.getItem('inputSplashPrompt'));
@@ -291,6 +331,11 @@
 				window.onresize = resizeAll;
 				inputChange();
 				requestAnimationFrame(refreshHistory);
+				addEventListener('scroll', event => {
+					scrollEvent_time = Date.now();
+					scrollEvent_top = window.pageYOffset || document.documentElement.scrollTop;
+				});
+				requestAnimationFrame(scrollEvent);
 			}
 		</script>
 	</head>
@@ -307,6 +352,12 @@
 					Scroll to top:
 				</label>
 				<input id="inputScrollToTop" name="Scroll to top" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputScrollToNextImage">
+					Scroll to next image:
+				</label>
+				<input id="inputScrollToNextImage" name="Scroll to next image" type="checkbox"/>
 			</div>
 			<div>
 				<label for="inputSplashPrompt">
