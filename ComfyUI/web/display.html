@@ -163,7 +163,7 @@
 										};
 										document.body.prepend(imageContainer);
 										if(inputScrollToTop.checked){
-											window.scrollTo(0, 0);
+											scrollTo(0, 0);
 										}
 									}
 								}
@@ -197,7 +197,7 @@
 								if(lastImageContainer){
 									lastImageContainer.scrollIntoView({behavior: 'smooth'});
 								}else{
-									window.scrollTo(0, 0);
+									scrollTo(0, 0);
 								}
 							}else{
 								imageContainer.scrollIntoView({behavior: 'smooth'});
@@ -286,7 +286,7 @@
 				}
 				inputSplashPrompt.valueAsNumber = v;
 				const inputPromptPopup = document.getElementById('inputPromptPopup');
-				window.addEventListener('beforeunload', (event)=>{
+				addEventListener('beforeunload', (event)=>{
 					if(inputPromptPopup.__promptWindow){
 						inputPromptPopup.__promptWindow.close();
 					}
@@ -328,13 +328,13 @@
 					v = 0;
 				}
 				inputImageScale.valueAsNumber = v;
-				window.onresize = resizeAll;
 				inputChange();
-				requestAnimationFrame(refreshHistory);
+				addEventListener('resize', resizeAll);
 				addEventListener('scroll', event => {
 					scrollEvent_time = Date.now();
-					scrollEvent_top = window.pageYOffset || document.documentElement.scrollTop;
+					scrollEvent_top = pageYOffset || document.documentElement.scrollTop;
 				});
+				requestAnimationFrame(refreshHistory);
 				requestAnimationFrame(scrollEvent);
 			}
 		</script>
