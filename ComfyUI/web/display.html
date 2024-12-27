@@ -89,7 +89,7 @@
 			'use strict'
 			function onload(){
 				function refreshHistory(){
-					fetch("http://127.0.0.1:8188/history").then(response=>response.json()).then(result => {
+					fetch('http://127.0.0.1:8188/history').then(response=>response.json()).then(result => {
 						const historyKeys = Object.keys(result);
 						for (const keyResult of Object.keys(result)) {
 							const history = result[keyResult];
