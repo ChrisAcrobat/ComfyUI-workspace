@@ -332,6 +332,13 @@
 				inputImageScale.valueAsNumber = v;
 				inputChange();
 				addEventListener('resize', resizeAll);
+				addEventListener('dblclick', mouseEvent => {
+					if(!document.fullscreenElement){
+						document.documentElement.requestFullscreen();
+					}else if(document.exitFullscreen){
+						document.exitFullscreen();
+					}
+				});
 				addEventListener('scroll', event => {
 					scrollEvent_time = Date.now();
 					scrollEvent_top = pageYOffset || document.documentElement.scrollTop;
