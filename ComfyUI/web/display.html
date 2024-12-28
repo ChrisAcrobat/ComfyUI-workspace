@@ -196,7 +196,7 @@
 							const index = keys.indexOf(t) + wheelEvent_change;
 							let imageContainer = tops[keys[index]];
 							if(!imageContainer){
-								imageContainer = wheelEvent_change < 0 ? tops[0] : tops[tops.length-1];
+								imageContainer = tops[wheelEvent_change < 0 ? keys[0] : keys[keys.length-1]];
 							}
 							wheelEvent_change = 0;
 							imageContainer.scrollIntoView({behavior: 'smooth'});
