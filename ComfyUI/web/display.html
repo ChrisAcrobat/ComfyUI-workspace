@@ -325,6 +325,9 @@
 				inputImageScale.valueAsNumber = v;
 				inputChange();
 				addEventListener('dblclick', mouseEvent => {
+					if(!['BODY', 'IMG'].includes(mouseEvent.srcElement.tagName)){
+						return;
+					}
 					if(!document.fullscreenElement){
 						document.documentElement.requestFullscreen();
 					}else if(document.exitFullscreen){
