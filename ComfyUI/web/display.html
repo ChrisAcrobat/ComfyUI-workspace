@@ -123,7 +123,7 @@
 											if(typeof prompt === 'object'){
 												for (const keyPrompt of Object.keys(prompt)){
 													const p = prompt[keyPrompt];
-													if(p.class_type === 'CLIPTextEncode'){
+													if(p.class_type === 'CLIPTextEncode' && p.inputs.text.trim()){
 														const promptItem = document.createElement('div');
 														promptItem.classList.add('prompt-item');
 														promptContainer.appendChild(promptItem);
