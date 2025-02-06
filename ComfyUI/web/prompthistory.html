@@ -15,6 +15,7 @@
 				margin: 0 8px 8px 8px;
 				background-color: aliceblue;
 				opacity: 75%;
+				cursor: pointer;
 			}
 			.prompt-container:first-child {
 				margin-top: 8px;
@@ -42,6 +43,9 @@
 						promptContainer.id = messageEvent.data.id;
 						promptContainer.classList.add('prompt-container');
 						promptContainer.innerHTML = messageEvent.data.data;
+						promptContainer.addEventListener('click', () => {
+							parent.postMessage({type: 'Click', id: messageEvent.data.id}, '*');
+						});
 						document.body.prepend(promptContainer);
 					}else if(messageEvent.data.type === 'Hide'){
 						const promptContainer = document.getElementById(messageEvent.data.id);

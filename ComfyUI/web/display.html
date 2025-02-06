@@ -110,6 +110,13 @@
 										}
 									}
 									if(imageURL){
+										const start = history.status.messages.find(m => m[0] === 'execution_start')[1].timestamp;
+										const done = history.status.messages.find(m => m[0] === 'execution_success')[1].timestamp;
+										executionTime += done - start;
+										document.getElementById('spnExecutionTime').innerText = executionTime/1000;
+										if(!startUpTime){
+											startUpTime = start
+										}
 										const imageContainer = document.createElement('div');
 										imageContainer.id = 'container-'+imageURL;
 										imageContainer.classList.add('image-container');
@@ -179,8 +186,12 @@
 					});
 				}
 				let wheelEvent_change = 0;
-				function scrollService(){
-					requestAnimationFrame(scrollService);
+				function helpers(){
+					requestAnimationFrame(helpers);
+					if(startUpTime){
+						document.getElementById('spnUpTime').innerText = (Date.now() - startUpTime)/1000;
+					}
+					// Scroll service
 					if(!wheelEvent_change || !inputScrollToNextImage.checked || Date.now() < wheelEvent_time + 500){
 						return;
 					}
@@ -265,6 +276,8 @@
 					localStorage.setItem('inputSplashPrompt', inputSplashPrompt.valueAsNumber);
 					resizeAll();
 				}
+				let startUpTime;
+				let executionTime = 0;
 				const images = [];
 				let v;
 				const inputScrollToTop = document.getElementById('inputScrollToTop');
@@ -296,6 +309,18 @@
 								inputPromptPopup.checked = false;
 								inputPromptPopup.dispatchEvent(new Event('change'));
 							});
+						});
+						inputPromptPopup.__promptWindow.addEventListener('message', messageEvent => {
+							if(messageEvent.data.type === 'Click'){
+								const imageContainer = document.getElementById(messageEvent.data.id);
+								imageContainer.scrollIntoView({behavior: 'smooth'});
+								[...imageContainer.getElementsByClassName('prompt-container')].forEach(promptContainer => {
+									promptContainer.style.display = 'unset';
+									setTimeout(()=>{
+										promptContainer.style.display = null;
+									}, 2000);
+								});
+							}
 						});
 					}else{
 						inputPromptPopup.__promptWindow.close();
@@ -352,7 +377,7 @@
 				});
 				addEventListener('resize', resizeAll);
 				requestAnimationFrame(refreshHistory);
-				requestAnimationFrame(scrollService);
+				requestAnimationFrame(helpers);
 			}
 		</script>
 	</head>
@@ -424,6 +449,18 @@
 						Number of images:
 					</label>
 					<span id="spnNumberOfImages"></span>
+				</div>
+				<div>
+					<label for="spnUpTime">
+						Up-time:
+					</label>
+					<span id="spnUpTime"></span>
+				</div>
+				<div>
+					<label for="spnExecutionTime">
+						Execution time:
+					</label>
+					<span id="spnExecutionTime"></span>
 				</div>
 			</fieldset>
 		</form>
