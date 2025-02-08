@@ -20,10 +20,13 @@ RENAME ComfyUI\.git .git-
 attrib +h .git
 attrib +h ComfyUI\.git-
 
+:START
 ECHO : Staring :
 :: imdisk.exe -a -s 256M -o awe -m R: -p "/fs:ntfs /v:RamDisk /q /y"
 .\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --output-directory R:\ComfyUI\
 
 ECHO : Cleaning up :
 :: imdisk.exe -D R:
-pause
+ECHO ComfyUI has crashed. Press any key to restart.
+pause >nul
+GOTO START
