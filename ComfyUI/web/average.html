@@ -277,7 +277,7 @@
 				inputImageWidth.valueAsNumber = v;
 				inputChange();
 				addEventListener('dblclick', mouseEvent => {
-					if(!['BODY', 'IMG'].includes(mouseEvent.srcElement.tagName)){
+					if(!['BODY', 'CANVAS'].includes(mouseEvent.srcElement.tagName)){
 						return;
 					}
 					if(!document.fullscreenElement){
