@@ -164,7 +164,7 @@
 												}
 												imageSum[key].sum[i] += v;
 											});
-											updateAverage();
+											doUpgradeAverage = true;
 										}
 										image.onerror = ()=>{
 											imageContainer.classList.add('hidden');
@@ -174,6 +174,10 @@
 							}
 						}
 					}).finally(()=>{
+						if(doUpgradeAverage){
+							updateAverage();
+							doUpgradeAverage = false;
+						}
 						requestAnimationFrame(refreshHistory);
 					});
 				}
@@ -222,10 +226,9 @@
 							canvas.classList.add('average-image');
 							canvas.width = data.width;
 							canvas.height = data.height;
-							document.body.appendChild(imageContainer);
+							document.body.prepend(imageContainer);
 							resize(canvas);
 						}
-						canvas.parentElement.style.order = -data.count;
 						const lblCount = canvas.parentElement.getElementsByClassName('count')[0];
 						lblCount.innerText = 'Count: '+data.count;
 						const canvasContext = canvas.getContext('2d');
@@ -234,11 +237,21 @@
 						canvasContext.putImageData(imageData, 0, 0);
 					}
 					document.getElementById('spnNumberOfImages').innerText = keys.length;
+					sortAverage();
+				}
+				function sortAverage(){
+					const keys = Object.keys(imageSum);
+					let max = 0;
+					for(const key of keys){
+						max = Math.max(imageSum[key].count, max);
+					}
+					for(const key of keys){
+						const data = imageSum[key];
+						document.getElementById(key).parentElement.style.order = -(inputInvertSort.checked ? max - data.count + 1 : data.count);
+					}
 				}
 				function resizeAll(){
-					for(const canvas of [...document.getElementsByClassName('average-image')].filter(i => !i.classList.contains('hidden'))) {
-						resize(canvas);
-					}
+					[...document.getElementsByClassName('average-image')].filter(i => !i.classList.contains('hidden')).map(resize);
 				}
 				function resize(canvas){
 					const multiplier = inputImageWidth.valueAsNumber;
@@ -248,19 +261,25 @@
 				}
 				function inputChange(event){
 					localStorage.setItem('inputScrollToNextImage', inputScrollToNextImage.checked);
+					localStorage.setItem('inputInvertSort', inputInvertSort.checked);
 					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
 					localStorage.setItem('inputSplashPrompt', inputSplashPrompt.valueAsNumber);
 					resizeAll();
+					sortAverage();
 				}
 				let startUpTime;
 				let executionTime = 0;
+				let doUpgradeAverage = false;
 				const images = [];
-				const imageSum = {}
+				const imageSum = {};
 				let v;
 				const secretCanvas = document.getElementById('secret-canvas');
 				const inputScrollToNextImage = document.getElementById('inputScrollToNextImage');
 				inputScrollToNextImage.addEventListener('change', inputChange);
 				inputScrollToNextImage.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToNextImage'));
+				const inputInvertSort = document.getElementById('inputInvertSort');
+				inputInvertSort.addEventListener('change', sortAverage);
+				inputInvertSort.checked = ['true'].includes(localStorage.getItem('inputInvertSort'));
 				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
 				inputSplashPrompt.addEventListener('change', inputChange);
 				v = parseFloat(localStorage.getItem('inputSplashPrompt'));
@@ -306,6 +325,12 @@
 					Scroll to next image:
 				</label>
 				<input id="inputScrollToNextImage" name="Scroll to next image" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputInvertSort">
+					Invert image sorting:
+				</label>
+				<input id="inputInvertSort" name="Invert image sorting" type="checkbox"/>
 			</div>
 			<div>
 				<label for="inputSplashPrompt">
