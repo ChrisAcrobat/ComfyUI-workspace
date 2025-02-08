@@ -1,0 +1,341 @@
+<html>
+	<head>
+		<style>
+			:root {
+				user-select: none;
+				background: black;
+				scrollbar-width: none;
+			}
+			body {
+				margin: 0;
+				display: flex;
+				flex-wrap: wrap;
+			}
+
+			.image-container {
+				position: relative;
+				vertical-align: top;
+				float: left;
+			}
+
+			.image-container:hover .btn-hide {
+				display: unset;
+			}
+			.btn-hide {
+				display: none;
+				position: absolute;
+				top: 8px;
+				right: 8px;
+			}
+
+			.image-container:hover .prompt-container {
+				display: unset;
+			}
+			.prompt-container {
+				display: none;
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				margin: 8px;
+				width: calc(100% - 16px);
+				font-size: large;
+				background-color: aliceblue;
+				opacity: 75%;
+			}
+			.prompt-item {
+				margin-top: 18px;
+				margin-left: 18px;
+				margin-right: 18px;
+			}
+			.prompt-item>p {
+				margin-top: 0;
+				user-select: text;
+			}
+
+			#settings {
+				position: fixed;
+				bottom: 0px;
+				right: 0px;
+				background: white;
+				margin: 0;
+				padding: 4px;
+				opacity: 0;
+			}
+			#settings:hover {
+				opacity: 1;
+			}
+			#settings fieldset {
+				border-width: 0;
+				border-top-width: unset;
+				padding-left: 0;
+				padding-right: 0;
+				padding-bottom: 0;
+			}
+			#settings fieldset legend {
+				margin-left: 12;
+			}
+
+			.hidden {
+				display: none;
+			}
+		</style>
+		<script type="text/javascript">
+			'use strict'
+			function onload(){
+				function refreshHistory(){
+					fetch('http://127.0.0.1:8188/history').then(response=>response.json()).then(result => {
+						const historyKeys = Object.keys(result);
+						for (const keyResult of Object.keys(result)) {
+							const history = result[keyResult];
+							for (const keyOutputs of Object.keys(history.outputs)) {
+								const output = history.outputs[keyOutputs];
+								let index = 0;
+								for (const keyImages of Object.keys(output.images)) {
+									const imageResult = output.images[keyImages];
+									if(imageResult.type === 'temp'){
+										continue;
+									}
+									const animated = output.animated ? output.animated[index++] : false;
+									let imageURL = 'http://127.0.0.1:8188/view?filename='+imageResult['filename']+'&animated='+animated;
+									for (const i of document.body.childNodes) {
+										if(images.find(i => i.src === imageURL)){
+											imageURL = null;
+											break;
+										}
+									}
+									if(imageURL){
+										const start = history.status.messages.find(m => m[0] === 'execution_start')[1].timestamp;
+										const done = history.status.messages.find(m => m[0] === 'execution_success')[1].timestamp;
+										executionTime += done - start;
+										document.getElementById('spnExecutionTime').innerText = executionTime/1000;
+										if(!startUpTime){
+											startUpTime = start
+										}
+										const imageContainer = document.createElement('div');
+										imageContainer.id = 'container-'+imageURL;
+										imageContainer.classList.add('image-container');
+										const image = new Image();
+										images.push(image);
+										const promptContainer = document.createElement('div');
+										promptContainer.classList.add('prompt-container');
+										imageContainer.appendChild(promptContainer);
+										let promptItem = document.createElement('div');
+										promptItem.classList.add('prompt-item');
+										const lblCount = document.createElement('div');
+										promptContainer.appendChild(promptItem);
+										lblCount.classList = 'count';
+										promptItem.appendChild(lblCount);
+										for(const prompt of history.prompt){
+											if(typeof prompt === 'object'){
+												for (const keyPrompt of Object.keys(prompt)){
+													const p = prompt[keyPrompt];
+													if(p.class_type === 'CLIPTextEncode' && p.inputs.text.trim()){
+														promptItem = document.createElement('div');
+														promptItem.classList.add('prompt-item');
+														promptContainer.appendChild(promptItem);
+														let paragraph = document.createElement('label');
+														paragraph.innerText = 'Prompt '+keyPrompt;
+														promptItem.appendChild(paragraph);
+														paragraph = document.createElement('p');
+														let code = document.createElement('code');
+														code.innerText = p.inputs.text
+														paragraph.appendChild(code);
+														promptItem.appendChild(paragraph);
+													}
+												}
+											}
+										}
+										image.src = imageURL;
+										image.onload = ()=>{
+											const width = image.width;
+											const height = image.height;
+											secretCanvas.width = width;
+											secretCanvas.height = height;
+											const canvasContext = secretCanvas.getContext('2d');
+											canvasContext.drawImage(image, 0, 0);
+											const key = imageContainer.innerHTML+'-x'+width+'y'+height;
+											if(!imageSum[key]){
+												imageSum[key] = {count: 0, sum: [], width, height, html: imageContainer.innerHTML};
+											}
+											imageSum[key].count++;
+											canvasContext.getImageData(0, 0, width, height).data.forEach((v, i) => {
+												if(!imageSum[key].sum[i]){
+													imageSum[key].sum[i] = 0;
+												}
+												imageSum[key].sum[i] += v;
+											});
+											updateAverage();
+										}
+										image.onerror = ()=>{
+											imageContainer.classList.add('hidden');
+										};
+									}
+								}
+							}
+						}
+					}).finally(()=>{
+						requestAnimationFrame(refreshHistory);
+					});
+				}
+				let wheelEvent_change = 0;
+				function helpers(){
+					requestAnimationFrame(helpers);
+					if(startUpTime){
+						document.getElementById('spnUpTime').innerText = (Date.now() - startUpTime)/1000;
+					}
+					// Scroll service
+					if(!wheelEvent_change || !inputScrollToNextImage.checked || Date.now() < wheelEvent_time + 500){
+						return;
+					}
+					const tops = {};
+					for(const imageContainer of document.getElementsByClassName('image-container')){
+						const top = imageContainer.getBoundingClientRect().top;
+						tops[top] = imageContainer;
+					}
+					const keys = Object.keys(tops);
+					for(const t of keys){
+						const ic = tops[t];
+						if(0 < parseFloat(t) + ic.offsetHeight/2){
+							const index = keys.indexOf(t) + wheelEvent_change;
+							let imageContainer = tops[keys[index]];
+							if(!imageContainer){
+								imageContainer = tops[wheelEvent_change < 0 ? keys[0] : keys[keys.length-1]];
+							}
+							wheelEvent_change = 0;
+							imageContainer.scrollIntoView({behavior: 'smooth'});
+							break;
+						}
+					}
+				}
+				function updateAverage(){
+					const keys = Object.keys(imageSum);
+					for(const key of keys){
+						const data = imageSum[key];
+						let canvas = document.getElementById(key);
+						if(!canvas){
+							canvas = document.createElement('canvas');
+							const imageContainer = document.createElement('div');
+							imageContainer.classList.add('image-container');
+							imageContainer.innerHTML += data.html;
+							imageContainer.appendChild(canvas);
+							canvas.id = key;
+							canvas.classList.add('average-image');
+							canvas.width = data.width;
+							canvas.height = data.height;
+							document.body.appendChild(imageContainer);
+							resize(canvas);
+						}
+						canvas.parentElement.style.order = -data.count;
+						const lblCount = canvas.parentElement.getElementsByClassName('count')[0];
+						lblCount.innerText = 'Count: '+data.count;
+						const canvasContext = canvas.getContext('2d');
+						const imageData = canvasContext.createImageData(data.width, data.height);
+						imageData.data.set(new Uint8ClampedArray(data.sum.map(v => v/data.count)));
+						canvasContext.putImageData(imageData, 0, 0);
+					}
+					document.getElementById('spnNumberOfImages').innerText = keys.length;
+				}
+				function resizeAll(){
+					for(const canvas of [...document.getElementsByClassName('average-image')].filter(i => !i.classList.contains('hidden'))) {
+						resize(canvas);
+					}
+				}
+				function resize(canvas){
+					const multiplier = inputImageWidth.valueAsNumber;
+					const imageStyle = getComputedStyle(canvas);
+					const zoom = document.body.clientWidth / (canvas.offsetWidth*multiplier);
+					canvas.style.zoom = zoom;
+				}
+				function inputChange(event){
+					localStorage.setItem('inputScrollToNextImage', inputScrollToNextImage.checked);
+					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
+					localStorage.setItem('inputSplashPrompt', inputSplashPrompt.valueAsNumber);
+					resizeAll();
+				}
+				let startUpTime;
+				let executionTime = 0;
+				const images = [];
+				const imageSum = {}
+				let v;
+				const secretCanvas = document.getElementById('secret-canvas');
+				const inputScrollToNextImage = document.getElementById('inputScrollToNextImage');
+				inputScrollToNextImage.addEventListener('change', inputChange);
+				inputScrollToNextImage.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToNextImage'));
+				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
+				inputSplashPrompt.addEventListener('change', inputChange);
+				v = parseFloat(localStorage.getItem('inputSplashPrompt'));
+				if(isNaN(v)){
+					v = 3;
+				}
+				inputSplashPrompt.valueAsNumber = v;
+				const inputImageWidth = document.getElementById('inputImageWidth');
+				inputImageWidth.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageWidth'));
+				if(isNaN(v)){
+					v = 3;
+				}
+				inputImageWidth.valueAsNumber = v;
+				inputChange();
+				addEventListener('dblclick', mouseEvent => {
+					if(!['BODY', 'IMG'].includes(mouseEvent.srcElement.tagName)){
+						return;
+					}
+					if(!document.fullscreenElement){
+						document.documentElement.requestFullscreen();
+					}else if(document.exitFullscreen){
+						document.exitFullscreen();
+					}
+				});
+				addEventListener('resize', resizeAll);
+				requestAnimationFrame(refreshHistory);
+				requestAnimationFrame(helpers);
+			}
+		</script>
+	</head>
+	<body onload="onload()">
+		<canvas id="secret-canvas" class="hidden"></canvas>
+		<form id="settings">
+			<div>
+				<label for="inputImageWidth">
+					Images per row:
+				</label>
+				<input id="inputImageWidth" name="Image width" type="number" step="any" min="1"/>
+			</div>
+			<div>
+				<label for="inputScrollToNextImage">
+					Scroll to next image:
+				</label>
+				<input id="inputScrollToNextImage" name="Scroll to next image" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputSplashPrompt">
+					Splash prompt (seconds):
+				</label>
+				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
+			</div>
+			<fieldset>
+				<legend>
+					Information
+				</legend>
+				<div>
+					<label for="spnNumberOfImages">
+						Number of images:
+					</label>
+					<span id="spnNumberOfImages"></span>
+				</div>
+				<div>
+					<label for="spnUpTime">
+						Up-time:
+					</label>
+					<span id="spnUpTime"></span>
+				</div>
+				<div>
+					<label for="spnExecutionTime">
+						Execution time:
+					</label>
+					<span id="spnExecutionTime"></span>
+				</div>
+			</fieldset>
+		</form>
+	</body>
+</html>
