@@ -5,6 +5,6 @@
 !/ComfyUI
 !/ComfyUI/extra_model_paths.yaml
 !/ComfyUI/web
-!/ComfyUI/web/average.html
 !/ComfyUI/web/display.html
+!/ComfyUI/web/merge.html
 !/ComfyUI/web/prompthistory.html
