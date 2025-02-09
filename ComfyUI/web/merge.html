@@ -107,7 +107,17 @@
 										const start = history.status.messages.find(m => m[0] === 'execution_start')[1].timestamp;
 										const done = history.status.messages.find(m => m[0] === 'execution_success')[1].timestamp;
 										executionTime += done - start;
-										document.getElementById('spnExecutionTime').innerText = relativeTimeFormat.format(-executionTime/1000, 'second');
+										let uptime = ''; // Lookup: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Duration
+										const time = new Date(executionTime);
+										const hours = time.getUTCHours();
+										if(hours){
+											uptime += hours.toString().padStart(2, '0')+':';
+										}
+										const minutes = time.getUTCMinutes();
+										if(hours && minutes){
+											uptime += minutes.toString().padStart(2, '0')+':';
+										}
+										document.getElementById('spnExecutionTime').innerText = uptime + time.getUTCSeconds().toString().padStart(2, '0');
 										if(!startUpTime){
 											startUpTime = start
 										}
@@ -185,7 +195,17 @@
 				function helpers(){
 					requestAnimationFrame(helpers);
 					if(startUpTime){
-						document.getElementById('spnUpTime').innerText = relativeTimeFormat.format(-(Date.now() - startUpTime)/1000, 'second');
+						let uptime = ''; // Lookup: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Duration
+						const time = new Date(Date.now() - startUpTime);
+						const hours = time.getUTCHours();
+						if(hours){
+							uptime += hours.toString().padStart(2, '0')+':';
+						}
+						const minutes = time.getUTCMinutes();
+						if(hours && minutes){
+							uptime += minutes.toString().padStart(2, '0')+':';
+						}
+						document.getElementById('spnUpTime').innerText = uptime + time.getUTCSeconds().toString().padStart(2, '0');
 					}
 					// Scroll service
 					if(!wheelEvent_change || !inputScrollToNextImage.checked || Date.now() < wheelEvent_time + 500){
@@ -272,7 +292,6 @@
 				let doUpgradeAverage = false;
 				const images = [];
 				const imageSum = {};
-				const relativeTimeFormat = new Intl.RelativeTimeFormat({style: 'short', numeric: 'auto'}); // Lookup: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Duration
 				let v;
 				const secretCanvas = document.getElementById('secret-canvas');
 				const inputScrollToNextImage = document.getElementById('inputScrollToNextImage');
