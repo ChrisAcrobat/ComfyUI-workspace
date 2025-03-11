@@ -2,9 +2,11 @@
 !/.gitignore
 !/_START.bat
 !/README.md
-!/ComfyUI
-!/ComfyUI/extra_model_paths.yaml
-!/ComfyUI/web
-!/ComfyUI/web/display.html
-!/ComfyUI/web/merge.html
-!/ComfyUI/web/prompthistory.html
+!/python_embeded
+!/python_embeded/Lib
+!/python_embeded/Lib/site-packages
+!/python_embeded/Lib/site-packages/comfyui_frontend_package
+!/python_embeded/Lib/site-packages/comfyui_frontend_package/static
+!/python_embeded/Lib/site-packages/comfyui_frontend_package/static/display.html
+!/python_embeded/Lib/site-packages/comfyui_frontend_package/static/merge.html
+!/python_embeded/Lib/site-packages/comfyui_frontend_package/static/prompthistory.html
