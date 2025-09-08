@@ -1,6 +1,9 @@
 *
 !/.gitignore
 !/_START.bat
+!/_START_NETWORK.bat
+!/_SWITCH_STATE.sh
+!/_UPDATE.bat
 !/README.md
 !/python_embeded
 !/python_embeded/Lib

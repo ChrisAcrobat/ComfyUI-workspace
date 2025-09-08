@@ -1,32 +1,29 @@
 @ECHO OFF
+CD /d "%~dp0"
 
-ECHO : Updating :
-attrib -h .git
-attrib -h ComfyUI\.git-
-RENAME .git .git-
-RENAME ComfyUI\.git- .git
-CD update
-:: Based on "update_comfyui_stable.bat"
-..\python_embeded\python.exe .\update.py ..\ComfyUI\ --stable
-if exist update_new.py (
-  move /y update_new.py update.py
-  echo Running updater again since it got updated.
-  ..\python_embeded\python.exe .\update.py ..\ComfyUI\ --skip_self_update --stable
-)
-:: /Based on "update_comfyui_stable.bat"
-CD ..\
-RENAME .git- .git
-RENAME ComfyUI\.git .git-
-attrib +h .git
-attrib +h ComfyUI\.git-
-
-:START
 ECHO : Staring :
-:: imdisk.exe -a -s 256M -o awe -m R: -p "/fs:ntfs /v:RamDisk /q /y"
-.\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --output-directory R:\ComfyUI\
+imdisk.exe -a -s 256M -o awe -m R: -p "/fs:ntfs /v:RamDisk /q /y"
+if %ERRORLEVEL% NEQ 0 (
+	pause >nul
+	exit
+)
+
+SET key=ComfyUI %DATE% %TIME%
+START "%key%" .\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --output-directory R:\ComfyUI\ %*
+
+ECHO.
+ECHO    ^|--------------------------------------------------^|
+ECHO    ^|               Waiting for clean up               ^|
+ECHO    ^|--------------------------------------------------^|
+ECHO    ^|                                                  ^|
+ECHO    ^|   Do not close this window!                      ^|
+ECHO    ^|   This window will close by it self when done.   ^|
+ECHO    ^|                                                  ^|
+ECHO    ^|--------------------------------------------------^|
+ECHO.
+:Watcher
+TIMEOUT /T 1 /nobreak >nul
+TASKLIST /v|find "%key%" >nul &&goto Watcher
 
 ECHO : Cleaning up :
-:: imdisk.exe -D R:
-ECHO ComfyUI has crashed. Press any key to restart.
-pause >nul
-GOTO START
+imdisk.exe -D -m R:
