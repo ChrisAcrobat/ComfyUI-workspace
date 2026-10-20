@@ -32,7 +32,8 @@ origin is found from the script's real path, so calling the script through a sym
 
 - `git`
 - Python **3.10 or newer** with the `venv` module (3.13 recommended). The script tries `python3.13`, `python3.12`, `python3.11`, `python3.14`, `python3.10` and then `python3`, in that order. To force a specific one, set `COMFY_PYTHON=/path/to/python`.
-  On Debian/Ubuntu, if `venv` is missing: `sudo apt install python3-venv`
+
+**If something is missing, setup offers to install it for you** (see [Automatic prerequisite installation](#automatic-prerequisite-installation)). On Debian/Ubuntu that means `sudo apt-get install …`. You are asked first (default: yes); with `-y` it installs without asking.
 
 ## Quick start
 
@@ -127,12 +128,31 @@ Re-run it after moving the origin folder, so the paths are updated.
 
 ## What setup does
 
-1. Checks for `git` and a suitable Python.
+1. Checks for `git` and a suitable Python, and offers to install whatever is missing.
 2. Asks for the install folder and channel.
 3. Clones ComfyUI (only on first install).
 4. Creates `.venv/` and installs PyTorch, **before** `requirements.txt`, so the plain `torch` line there doesn't pull the wrong build.
 5. Writes `_CONFIG.json`, `extra_model_paths.yaml` and `_START_COMFYUI.sh`.
 6. Runs `_START_COMFYUI.sh --update-only` to check out the right version and install dependencies. The update logic lives only in the start script.
+
+## Automatic prerequisite installation
+
+If `git`, a Python ≥ 3.10 or its `venv`/`ensurepip` module is missing, setup installs it with the system package manager and then checks again:
+
+| Package manager | git | Python | venv module |
+|---|---|---|---|
+| `apt-get` (Debian/Ubuntu) | `git ca-certificates` | `python3 python3-venv` | `python3.X-venv` (fallback: `python3-venv`) |
+| `dnf` (Fedora/RHEL) | `git` | `python3` | `python3` |
+| `pacman` (Arch) | `git` | `python` | `python` |
+| `zypper` (openSUSE) | `git` | `python3` | `python3` |
+| `brew` (macOS) | `git` | `python@3.13` | `python@3.13` |
+
+- **Debian/Ubuntu:** `ensurepip` lives in the version-specific package, so setup installs only the one matching the Python it found (on Debian 13: `python3.13-venv`). If that package isn't in your repositories, it falls back to `python3-venv`. When Python itself is missing, it installs `python3 python3-venv`. `apt-get update` runs first.
+- **Permissions:** as root, commands run directly. Otherwise `sudo` is used if it is installed. Without a terminal, `sudo -n` is used, so it fails instead of hanging at a password prompt. `brew` never uses sudo.
+- **Confirmation:** in a terminal you get a yes/no question (default yes). With `-y`, or when stdin is not a terminal, setup installs without asking.
+- **When it can't install** (no supported package manager, no root/sudo, you answer no, or the install fails), setup stops and prints the exact command to run yourself, e.g.
+  `sudo apt-get update && sudo apt-get install -y python3.13-venv`.
+- A Python that is too old (< 3.10) is **not** upgraded automatically. Install a newer one and point `COMFY_PYTHON` at it.
 
 ## Models: `extra_model_paths.yaml`
 
@@ -223,7 +243,7 @@ ComfyUI/
 - **Two instances share `/tmp/ComfyUI_output`.** When one exits, it deletes the other's output. The folder is also deleted if you pass your own `--output-directory`.
 - **`ComfyUI/models/` is still scanned** as well as `origin/models/`. New downloads default to `origin/models/`.
 - **ComfyUI-Manager is not installed.** `--enable-manager` also needs `ComfyUI/.venv/bin/python -m pip install -r ComfyUI/manager_requirements.txt`.
-- **Tested on Linux with CPU PyTorch only.** NVIDIA/AMD detection and macOS are untested. If the auto-detected build is wrong, re-run with e.g. `-t cuda-legacy` or `-t cpu`.
+- **Tested on Linux (Debian 13) with CPU PyTorch only.** NVIDIA/AMD detection and macOS are untested. Automatic installation was tested for real with `apt` on Debian 13; the `dnf`/`pacman`/`zypper`/`brew` paths are untested. If the auto-detected build is wrong, re-run with e.g. `-t cuda-legacy` or `-t cpu`.
 - **Pages at `/e/`:**
   - If `origin/frontend/` is created while ComfyUI is running, or `frontend_url_path` is changed, restart ComfyUI.
   - There is no folder listing; only `index.html` is served automatically.

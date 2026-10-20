@@ -14,6 +14,9 @@
 #    -y, --yes                     fråga ingenting, använd standardvärden
 #    -h, --help                    visa hjälp
 #
+#  Saknas git, Python >= 3.10 eller venv erbjuder skriptet att installera dem
+#  (apt, dnf, pacman, zypper eller brew; sudo används vid behov).
+#
 #  "origin" = katalogen där detta skript ligger. Där förväntas:
 #    origin/models/    – modeller (skapas av skriptet)
 #    origin/frontend/  – egna fristående sidor (valfri), serveras live på /e/
@@ -78,7 +81,7 @@ die()   { printf '\033[1;31mFEL:\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
   # Skriv ut kommentarshuvudet ovan som hjälptext
-  sed -n '3,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "${BASH_SOURCE[0]}"
 }
 
 # Symlänksäker motsvarighet till "realpath" (fungerar även på äldre macOS)
@@ -133,42 +136,191 @@ while [ $# -gt 0 ]; do
 done
 
 # ----------------------------------------------------------------------------
+#  Automatisk installation av förkrav (apt, dnf, pacman, zypper, brew)
+# ----------------------------------------------------------------------------
+PKG_MANAGER=""
+ROOT_PREFIX=()
+
+detect_pkg_manager() {
+  if [ "$(uname -s)" = Darwin ]; then
+    if command -v brew >/dev/null 2>&1; then PKG_MANAGER=brew; fi
+    return 0
+  fi
+  local pm
+  for pm in apt-get dnf pacman zypper; do
+    if command -v "$pm" >/dev/null 2>&1; then
+      PKG_MANAGER=$pm
+      return 0
+    fi
+  done
+}
+
+# Paketnamn för ett förkrav: git | python | venv (venv tar Pythonversion, t.ex. 3.13)
+packages_for() {
+  local need=$1 version=${2:-}
+  case $PKG_MANAGER:$need in
+    apt-get:git)    echo "git ca-certificates" ;;
+    apt-get:python) echo "python3 python3-venv" ;;
+    # Debian/Ubuntu: ensurepip ligger i det versionsspecifika paketet
+    # (t.ex. python3.13-venv). Saknas det i apt används python3-venv.
+    apt-get:venv)   if [ -n "$version" ]; then echo "python$version-venv"; else echo python3-venv; fi ;;
+    *:git)          echo git ;;
+    dnf:*|zypper:*) echo python3 ;;
+    pacman:*)       echo python ;;
+    brew:*)         echo python@3.13 ;;
+  esac
+}
+
+# Sätter ROOT_PREFIX (tom om root/brew, annars sudo). Misslyckas utan sudo.
+root_prefix() {
+  ROOT_PREFIX=()
+  if [ "$PKG_MANAGER" = brew ] || [ "$(id -u)" -eq 0 ]; then
+    return 0
+  fi
+  command -v sudo >/dev/null 2>&1 || return 1
+  if [ -t 0 ]; then
+    ROOT_PREFIX=(sudo)
+  else
+    ROOT_PREFIX=(sudo -n)   # ingen terminal: fråga inte efter lösenord, misslyckas direkt
+  fi
+}
+
+as_root() { ${ROOT_PREFIX[@]+"${ROOT_PREFIX[@]}"} "$@"; }
+
+# Kommandot som användaren kan köra själv (visas i frågor och felmeddelanden)
+manual_install_command() {
+  local p=""
+  if [ "$PKG_MANAGER" != brew ] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    p="sudo "
+  fi
+  case $PKG_MANAGER in
+    apt-get) echo "${p}apt-get update && ${p}apt-get install -y $*" ;;
+    dnf)     echo "${p}dnf install -y $*" ;;
+    pacman)  echo "${p}pacman -S --needed $*" ;;
+    zypper)  echo "${p}zypper install $*" ;;
+    brew)    echo "brew install $*" ;;
+  esac
+}
+
+run_pkg_install() {
+  case $PKG_MANAGER in
+    apt-get)
+      as_root env DEBIAN_FRONTEND=noninteractive apt-get update -qq || return 1
+      # Paket som saknas i paketkällorna: python3.X-venv ersätts med
+      # python3-venv, övriga hoppas över
+      local pkg available=()
+      for pkg in "$@"; do
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+          available+=("$pkg")
+        elif [[ $pkg == python3.*-venv ]] && apt-cache show python3-venv >/dev/null 2>&1; then
+          warn "Paketet $pkg finns inte i paketkällorna – använder python3-venv i stället."
+          available+=(python3-venv)
+        else
+          warn "Paketet $pkg finns inte i paketkällorna – hoppar över det."
+        fi
+      done
+      [ ${#available[@]} -gt 0 ] || return 1
+      as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${available[@]}" ;;
+    dnf)    as_root dnf install -y "$@" ;;
+    pacman) as_root pacman -S --needed --noconfirm "$@" ;;
+    zypper) as_root zypper --non-interactive install "$@" ;;
+    brew)   brew install "$@" ;;
+    *)      return 1 ;;
+  esac
+}
+
+# Fråga ja/nej (standard ja); i icke-interaktivt läge alltid ja
+confirm() {
+  local answer
+  [ "$INTERACTIVE" = true ] || return 0
+  read -r -p "$1 [J/n]: " answer </dev/tty || true
+  case $answer in
+    ""|[JjYy]|[Jj][Aa]|[Yy][Ee][Ss]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ensure_packages BESKRIVNING BEHOV [PYTHONVERSION] – erbjud installation, annars avbryt
+ensure_packages() {
+  local what=$1 need=$2 version=${3:-} cmd
+  local -a pkgs
+  if [ -z "$PKG_MANAGER" ]; then
+    if [ "$(uname -s)" = Darwin ]; then
+      die "$what saknas. Installera Homebrew (https://brew.sh) och kör skriptet igen – eller installera själv (git: 'xcode-select --install', Python: https://www.python.org/downloads/)."
+    fi
+    die "$what saknas och ingen pakethanterare som stöds hittades (apt, dnf, pacman, zypper). Installera det manuellt och kör skriptet igen."
+  fi
+
+  read -r -a pkgs <<<"$(packages_for "$need" "$version")"
+  cmd=$(manual_install_command "${pkgs[@]}")
+
+  if ! root_prefix; then
+    die "$what saknas, och skriptet körs varken som root eller har sudo. Kör som root: $cmd"
+  fi
+  if ! confirm "$what saknas. Vill du installera det nu? ($cmd)"; then
+    die "$what krävs. Installera manuellt med: $cmd"
+  fi
+
+  info "Installerar $what (${pkgs[*]}) …"
+  run_pkg_install "${pkgs[@]}" \
+    || die "Installationen av $what misslyckades. Kör manuellt: $cmd"
+  hash -r
+}
+
+# ----------------------------------------------------------------------------
 #  Förkrav: git och Python >= 3.10 med venv
 # ----------------------------------------------------------------------------
-check_prerequisites() {
-  info "Kontrollerar förkrav …"
-  command -v git >/dev/null 2>&1 \
-    || die "git saknas. Installera det först (t.ex. 'sudo apt install git' eller 'xcode-select --install' på macOS)."
 
-  # Välj den bästa tillgängliga Pythonversionen (3.13 rekommenderas av ComfyUI).
-  # Kan styras med miljövariabeln COMFY_PYTHON.
-  local candidates candidate
+# Sätter PYTHON_BIN till den bästa lämpliga Pythonversionen (3.13 rekommenderas
+# av ComfyUI). Kan styras med miljövariabeln COMFY_PYTHON.
+# Sätter även PYTHON_NO_VENV (version utan venv) och PYTHON_TOO_OLD.
+find_python() {
+  local candidates candidate version
   if [ -n "${COMFY_PYTHON:-}" ]; then
     candidates=("$COMFY_PYTHON")
   else
     candidates=(python3.13 python3.12 python3.11 python3.14 python3.10 python3)
   fi
 
-  PYTHON_BIN=""
-  local found_any=""
+  PYTHON_BIN="" PYTHON_NO_VENV="" PYTHON_TOO_OLD=""
   for candidate in "${candidates[@]}"; do
     command -v "$candidate" >/dev/null 2>&1 || continue
-    found_any="$candidate"
-    if "$candidate" -c "import sys; sys.exit(0 if sys.version_info >= ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR) else 1)" 2>/dev/null; then
-      if "$candidate" -c "import venv, ensurepip" 2>/dev/null; then
-        PYTHON_BIN=$(command -v "$candidate")
-        break
-      fi
-      warn "$candidate saknar modulen venv/ensurepip (Debian/Ubuntu: 'sudo apt install python3-venv')."
+    version=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null) || continue
+    if ! "$candidate" -c "import sys; sys.exit(0 if sys.version_info >= ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR) else 1)" 2>/dev/null; then
+      PYTHON_TOO_OLD=${PYTHON_TOO_OLD:-$version}
+      continue
     fi
+    if "$candidate" -c "import venv, ensurepip" 2>/dev/null; then
+      PYTHON_BIN=$(command -v "$candidate")
+      return 0
+    fi
+    PYTHON_NO_VENV=${PYTHON_NO_VENV:-$version}
   done
+  return 1
+}
 
-  if [ -z "$PYTHON_BIN" ]; then
-    if [ -z "$found_any" ]; then
-      die "Python 3 hittades inte. Installera Python $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR eller nyare (3.13 rekommenderas)."
-    fi
-    die "Ingen lämplig Python hittades. ComfyUI kräver Python >= $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR med venv-modulen (3.13 rekommenderas). Debian/Ubuntu: 'sudo apt install python3-venv'."
+check_prerequisites() {
+  info "Kontrollerar förkrav …"
+  detect_pkg_manager
+
+  if ! command -v git >/dev/null 2>&1; then
+    ensure_packages "git" git
+    command -v git >/dev/null 2>&1 \
+      || die "git saknas fortfarande efter installationen. Installera det manuellt: $(manual_install_command git)"
   fi
+
+  if ! find_python; then
+    if [ -n "$PYTHON_NO_VENV" ]; then
+      ensure_packages "Python-modulen venv (för Python $PYTHON_NO_VENV)" venv "$PYTHON_NO_VENV"
+    elif [ -n "$PYTHON_TOO_OLD" ] && [ -z "${COMFY_PYTHON:-}" ]; then
+      die "Python $PYTHON_TOO_OLD är för gammal – ComfyUI kräver Python >= $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR (3.13 rekommenderas). Installera en nyare version eller ange den med COMFY_PYTHON=/sökväg/till/python."
+    else
+      ensure_packages "Python 3 (>= $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR)" python
+    fi
+    find_python \
+      || die "Ingen lämplig Python hittades efter installationen. ComfyUI kräver Python >= $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR med venv-modulen. Debian/Ubuntu: 'sudo apt-get install python3-venv'."
+  fi
+
   ok "git: $(git --version | awk '{print $3}')"
   ok "Python: $PYTHON_BIN ($("$PYTHON_BIN" -c 'import platform; print(platform.python_version())'))"
 }
