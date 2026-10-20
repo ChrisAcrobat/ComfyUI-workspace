@@ -23,8 +23,12 @@ my-comfy/                    <- origin
 ├── frontend/                <- optional: your own standalone pages
 │   ├── index.html
 │   └── …
-└── ComfyUI/                 <- default install location (can be anywhere)
+└── ComfyUI/                 <- default install folder (can be anywhere)
+    ├── _START_COMFYUI.sh    <- the only file here; start ComfyUI with this
+    └── data/                <- everything else (ComfyUI, Python env, config)
 ```
+
+The install folder contains **only** `_START_COMFYUI.sh` and `data/`. See [Generated files](#generated-files) for what's inside `data/`.
 
 origin is found from the script's real path, so calling the script through a symlink works too.
 
@@ -49,7 +53,7 @@ Then open <http://127.0.0.1:8188>.
 
 When setup runs in a terminal with no `INSTALL_DIR` and no `-y`:
 
-- **With a desktop** (`DISPLAY`/`WAYLAND_DISPLAY` set and `zenity` or `kdialog` installed, or macOS via `osascript`), a folder picker opens in origin. **Pick the folder that should *contain* ComfyUI**; setup creates the `ComfyUI` subfolder in it. For example, picking `~/AI` installs to `~/AI/ComfyUI`. Two exceptions, so you never get `ComfyUI/ComfyUI`: if you pick an existing ComfyUI install, or an empty folder named `ComfyUI`, that folder is used as-is. The chosen path is printed (`ComfyUI installeras i …`).
+- **With a desktop** (`DISPLAY`/`WAYLAND_DISPLAY` set and `zenity` or `kdialog` installed, or macOS via `osascript`), a folder picker opens in origin. **Pick the folder that should *contain* ComfyUI**; setup creates the `ComfyUI` subfolder in it. For example, picking `~/AI` installs to `~/AI/ComfyUI`. Two exceptions, so you never get `ComfyUI/ComfyUI`: if you pick an existing install (a folder with `data/ComfyUI` inside), or an empty folder named `ComfyUI`, that folder is used as-is. Picking an install's `data/` or `data/ComfyUI` folder by mistake also resolves to the install folder; this applies to typed paths and `INSTALL_DIR` too. The chosen path is printed (`ComfyUI installeras i …`).
 - **Cancelling the picker** doesn't abort; setup asks in the terminal instead.
 - **In the terminal**, the default (`<origin>/ComfyUI`) is pre-filled and editable, and **Tab completes paths**. Press Enter to accept. `~` and relative paths work. On macOS's old bash 3.2, the default is shown in brackets instead of pre-filled.
 - `--no-gui` always uses the terminal. `--gui` uses the picker even if no `DISPLAY` is detected (e.g. over SSH with X forwarding). zenity/kdialog are never installed automatically.
@@ -102,7 +106,7 @@ Either re-run setup with a channel:
 ./SETUP_COMFYUI.sh -c latest ComfyUI
 ```
 
-or edit `"channel"` in `ComfyUI/_CONFIG.json`. The next `_START_COMFYUI.sh` run then checks out the right version:
+or edit `"channel"` in `ComfyUI/data/_CONFIG.json`. The next `_START_COMFYUI.sh` run then checks out the right version:
 
 - **stable** – the highest `vX.Y.Z` tag (detached HEAD)
 - **latest** – the newest commit on `master`
@@ -118,17 +122,17 @@ http://127.0.0.1:8188/e/sub/page.html
 
 - Nothing is copied, so edits show up when you reload the page; no restart needed.
 - Your `.js` files are **not** loaded into the ComfyUI interface.
-- To use a different path, set `"frontend_url_path"` in `_CONFIG.json` (e.g. `"/sida"`) and restart ComfyUI.
+- To use a different path, set `"frontend_url_path"` in `data/_CONFIG.json` (e.g. `"/sida"`) and restart ComfyUI.
 - If `origin/frontend/` doesn't exist, nothing is served and everything else works as normal.
 
 ## Re-running setup
 
-Setup can be run as many times as you like. If the install folder already holds ComfyUI, setup **updates and reconfigures** instead of failing:
+Setup can be run as many times as you like. If the install folder is already an install (it has `data/ComfyUI`), setup **updates and reconfigures** instead of failing:
 
-- keeps the existing `.venv` and the PyTorch build (unless you pass a different `-t`)
+- keeps the existing `data/.venv` and the PyTorch build (unless you pass a different `-t`)
 - uses the current channel as the default answer
 - rewrites `_START_COMFYUI.sh` and `extra_model_paths.yaml`, and updates `_CONFIG.json` while keeping any keys you added yourself
-- refuses a folder that exists, isn't empty and isn't ComfyUI
+- refuses a folder that exists, isn't empty and isn't an install. That includes a plain ComfyUI checkout without `data/`.
 
 Re-run it after moving the origin folder, so the paths are updated.
 
@@ -140,9 +144,9 @@ Re-run it after moving the origin folder, so the paths are updated.
 
 1. Checks for `git` and a suitable Python, and offers to install whatever is missing.
 2. Asks for the install folder and channel.
-3. Clones ComfyUI (only on first install).
-4. Creates `.venv/` and installs PyTorch, **before** `requirements.txt`, so the plain `torch` line there doesn't pull the wrong build.
-5. Writes `_CONFIG.json`, `extra_model_paths.yaml` and `_START_COMFYUI.sh`.
+3. Clones ComfyUI into `data/ComfyUI` (only on first install).
+4. Creates `data/.venv/` and installs PyTorch, **before** `requirements.txt`, so the plain `torch` line there doesn't pull the wrong build.
+5. Writes `data/_CONFIG.json`, `data/ComfyUI/extra_model_paths.yaml` and `_START_COMFYUI.sh`.
 6. Runs `_START_COMFYUI.sh --update-only` to check out the right version and install dependencies. The update logic lives only in the start script.
 
 ## Automatic prerequisite installation
@@ -166,13 +170,13 @@ If `git`, a Python ≥ 3.10 or its `venv`/`ensurepip` module is missing, setup i
 
 ## Models: `extra_model_paths.yaml`
 
-Setup writes `ComfyUI/extra_model_paths.yaml` with `base_path: <origin>/models` and `is_default: true`, and creates the subfolders. The folder names follow ComfyUI's `extra_model_paths.yaml.example`:
+Setup writes `data/ComfyUI/extra_model_paths.yaml` with `base_path: <origin>/models` and `is_default: true`, and creates the subfolders. The folder names follow ComfyUI's `extra_model_paths.yaml.example`:
 
 `checkpoints`, `configs`, `loras`, `vae`, `text_encoders` + `clip`, `diffusion_models` + `unet`, `clip_vision`, `style_models`, `embeddings`, `diffusers`, `vae_approx`, `controlnet` + `t2i_adapter`, `gligen`, `upscale_models`, `latent_upscale_models`, `hypernetworks`, `photomaker`, `classifiers`, `model_patches`, `audio_encoders`, `background_removal`, `frame_interpolation`, `geometry_estimation`, `optical_flow`, `detection`.
 
 The file is rewritten on every setup run. If a hand-written version exists (one without the generated header), it is first saved as `extra_model_paths.yaml.bak`.
 
-## `_CONFIG.json`
+## `data/_CONFIG.json`
 
 ```json
 {
@@ -199,7 +203,7 @@ ComfyUI's own web files come from the pip package `comfyui-frontend-package`, wh
 
 Instead, `_START_COMFYUI.sh` generates a tiny custom node, `custom_nodes/_origin_frontend/`. Its `__init__.py`:
 
-- reads `origin` and `frontend_url_path` from `_CONFIG.json`
+- reads `origin` and `frontend_url_path` from `data/_CONFIG.json` (next to the clone, i.e. `ComfyUI/../_CONFIG.json`)
 - registers a static route (`/e/…`) pointing directly at `origin/frontend`, plus `/e` and `/e/` → `index.html`
 - sets **no** `WEB_DIRECTORY`, so nothing shows up in `/extensions`
 - follows symlinks inside `origin/frontend`; `../` in URLs is still blocked
@@ -222,37 +226,41 @@ The node folder has a marker file, `.generated_by_setup_comfyui`. If a folder wi
 
 On every start (unless `--no-update`):
 
-1. **Local changes** to tracked ComfyUI files → the git update is skipped, the changed files are listed, and ComfyUI still starts. Fix with `git -C ComfyUI stash` or `git -C ComfyUI checkout -- .`.
+1. **Local changes** to tracked ComfyUI files → the git update is skipped, the changed files are listed, and ComfyUI still starts. Fix with `git -C ComfyUI/data/ComfyUI stash` or `git -C ComfyUI/data/ComfyUI checkout -- .`.
 2. `git fetch --tags`. If it fails (**offline**) → warning, and the current version starts.
 3. Checks out the newest tag (`stable`) or `master` (`latest`). For `latest`, local commits on `master` that aren't on GitHub → the update is skipped with a warning.
-4. `pip install -r requirements.txt` runs **only if `requirements.txt` has changed** (a hash is kept in `.venv/.requirements.sha256`).
+4. `pip install -r requirements.txt` runs **only if `requirements.txt` has changed** (a hash is kept in `data/.venv/.requirements.sha256`).
 5. Regenerates the `_origin_frontend` node.
 
 ## Generated files
 
 ```
-ComfyUI/
-├── _START_COMFYUI.sh            update + start (rewritten by setup)
-├── _CONFIG.json                 settings (see above)
-├── extra_model_paths.yaml       -> origin/models (rewritten by setup)
-├── extra_model_paths.yaml.bak   only if you had your own version
-├── .venv/                       Python environment
-│   └── .requirements.sha256     "requirements already installed" marker
-└── custom_nodes/
-    └── _origin_frontend/        rewritten on every start
-        ├── __init__.py
-        └── .generated_by_setup_comfyui
+<install folder>/                  e.g. <origin>/ComfyUI
+├── _START_COMFYUI.sh              update + start (rewritten by setup)
+└── data/
+    ├── _CONFIG.json               settings (see above)
+    ├── .venv/                     Python environment
+    │   └── .requirements.sha256   "requirements already installed" marker
+    └── ComfyUI/                   the ComfyUI git clone
+        ├── extra_model_paths.yaml       -> origin/models (rewritten by setup)
+        ├── extra_model_paths.yaml.bak   only if you had your own version
+        └── custom_nodes/
+            └── _origin_frontend/        rewritten on every start
+                ├── __init__.py
+                └── .generated_by_setup_comfyui
 ```
 
-`_START_COMFYUI.sh`, `_CONFIG.json` and `extra_model_paths.yaml.bak` are added to `.git/info/exclude`, so `git status` stays clean. ComfyUI's own `.gitignore` already covers `extra_model_paths.yaml`, `.venv/` and `custom_nodes/`.
+`_START_COMFYUI.sh` finds its own folder and uses `./data/…`, so the whole install folder can be moved. If origin moves, re-run setup.
+
+`_START_COMFYUI.sh`, `data/_CONFIG.json` and `data/.venv/` are outside the clone, so git never sees them. `extra_model_paths.yaml.bak` is added to the clone's `.git/info/exclude`. ComfyUI's own `.gitignore` already covers `extra_model_paths.yaml` and `custom_nodes/`.
 
 ---
 
 # Caveats & troubleshooting
 
 - **Two instances share `/tmp/ComfyUI_output`.** When one exits, it deletes the other's output. The folder is also deleted if you pass your own `--output-directory`.
-- **`ComfyUI/models/` is still scanned** as well as `origin/models/`. New downloads default to `origin/models/`.
-- **ComfyUI-Manager is not installed.** `--enable-manager` also needs `ComfyUI/.venv/bin/python -m pip install -r ComfyUI/manager_requirements.txt`.
+- **`data/ComfyUI/models/` is still scanned** as well as `origin/models/`. New downloads default to `origin/models/`.
+- **ComfyUI-Manager is not installed.** `--enable-manager` also needs `ComfyUI/data/.venv/bin/python -m pip install -r ComfyUI/data/ComfyUI/manager_requirements.txt`.
 - **Tested on Linux (Debian 13) with CPU PyTorch only.** The folder picker was tested with real zenity (under Xvfb); kdialog and the macOS picker are untested. NVIDIA/AMD detection and macOS are untested. Automatic installation was tested for real with `apt` on Debian 13; the `dnf`/`pacman`/`zypper`/`brew` paths are untested. If the auto-detected build is wrong, re-run with e.g. `-t cuda-legacy` or `-t cpu`.
 - **Pages at `/e/`:**
   - If `origin/frontend/` is created while ComfyUI is running, or `frontend_url_path` is changed, restart ComfyUI.
@@ -260,5 +268,5 @@ ComfyUI/
   - ComfyUI's server caches images for a day (use a hard reload after editing one); `.js`/`.css` are never cached.
   - With `--offline`, ComfyUI blocks external resources (CDNs) on these pages too.
   - With `--listen`, `/e/` is reachable from the network.
-- **"Pythonmiljön saknas" / "_CONFIG.json saknas"** → run `SETUP_COMFYUI.sh` first.
-- **Broken `.venv`** (e.g. after a system Python upgrade) → re-run setup; it recreates the venv.
+- **"Pythonmiljön saknas" / "_CONFIG.json saknas"** → run `SETUP_COMFYUI.sh` first (or `data/` was moved or deleted).
+- **Broken `data/.venv`** (e.g. after a system Python upgrade) → re-run setup; it recreates the venv.

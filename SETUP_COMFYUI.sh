@@ -26,11 +26,11 @@
 #  Skriptet går att köra om hur många gånger som helst: finns ComfyUI redan i
 #  installationskatalogen uppdateras/konfigureras den om i stället.
 #
-#  Genererade filer i installationskatalogen:
+#  Installationskatalogen innehåller bara:
 #    _START_COMFYUI.sh        – uppdaterar och startar ComfyUI
-#    _CONFIG.json             – kanal (stable/latest), origin m.m.
-#    extra_model_paths.yaml   – pekar ComfyUI mot origin/models
-#    .venv/                   – Pythonmiljö för ComfyUI
+#    data/ComfyUI/            – ComfyUI (git), med extra_model_paths.yaml
+#    data/.venv/              – Pythonmiljö för ComfyUI
+#    data/_CONFIG.json        – kanal (stable/latest), origin m.m.
 # =============================================================================
 
 set -euo pipefail
@@ -348,7 +348,7 @@ PY
 
 write_config() {
   # Behåller eventuella extra nycklar som användaren lagt till själv
-  "$PYTHON_BIN" - "$INSTALL_DIR/$CONFIG_NAME" "$CHANNEL" "$ORIGIN" "$TORCH_BACKEND" <<'PY'
+  "$PYTHON_BIN" - "$CONFIG_FILE" "$CHANNEL" "$ORIGIN" "$TORCH_BACKEND" <<'PY'
 import json, sys
 path, channel, origin, torch_backend = sys.argv[1:5]
 try:
@@ -414,6 +414,32 @@ ask_path() {
   printf '%s\n' "${answer:-$default}"
 }
 
+# Sökvägar inom installationskatalogen
+set_layout_paths() {
+  DATA_DIR="$INSTALL_DIR/data"
+  COMFY_DIR="$DATA_DIR/ComfyUI"
+  VENV_DIR="$DATA_DIR/.venv"
+  CONFIG_FILE="$DATA_DIR/$CONFIG_NAME"
+}
+
+# Ny layout: <dir>/data/ComfyUI är en ComfyUI-checkout
+is_install_dir() { is_comfyui_checkout "$1/data/ComfyUI"; }
+
+# Har användaren pekat på data/ eller data/ComfyUI i en installation?
+# Skriv då ut installationskatalogen (undviker nästlade installationer).
+normalize_install_dir() {
+  local dir=$1 parent grandparent
+  parent=$(dirname "$dir")
+  grandparent=$(dirname "$parent")
+  if [ "$(basename "$dir")" = data ] && is_install_dir "$parent"; then
+    printf '%s\n' "$parent"
+  elif [ "$(basename "$dir")" = ComfyUI ] && [ "$(basename "$parent")" = data ] && is_install_dir "$grandparent"; then
+    printf '%s\n' "$grandparent"
+  else
+    printf '%s\n' "$dir"
+  fi
+}
+
 choose_install_dir() {
   local default="$ORIGIN/ComfyUI" start picked rc
   if [ -z "$INSTALL_DIR" ] && [ "$INTERACTIVE" = true ] && [ "$GUI_MODE" != off ]; then
@@ -422,10 +448,10 @@ choose_install_dir() {
     rc=0
     picked=$(pick_folder_gui "$start") || rc=$?
     if [ "$rc" -eq 0 ] && [ -n "$picked" ]; then
-      picked=${picked%/}
-      # Vald mapp är redan ComfyUI, eller en tom mapp som heter ComfyUI -> använd den.
-      # Annars skapas undermappen ComfyUI i den valda mappen.
-      if is_comfyui_checkout "$picked" \
+      picked=$(normalize_install_dir "${picked%/}")
+      # Vald mapp är redan en installation eller en tom mapp som heter
+      # ComfyUI -> använd den. Annars skapas undermappen ComfyUI där.
+      if is_install_dir "$picked" \
          || { [ "$(basename "$picked")" = ComfyUI ] && [ -z "$(ls -A "$picked" 2>/dev/null)" ]; }; then
         INSTALL_DIR=$picked
       else
@@ -452,11 +478,15 @@ choose_install_dir() {
     \~/*) INSTALL_DIR="$HOME/${INSTALL_DIR#\~/}" ;;
   esac
   case $INSTALL_DIR in /*) ;; *) INSTALL_DIR="$PWD/$INSTALL_DIR" ;; esac
-  INSTALL_DIR=${INSTALL_DIR%/}
+  INSTALL_DIR=$(normalize_install_dir "${INSTALL_DIR%/}")
 
-  if is_comfyui_checkout "$INSTALL_DIR"; then
+  set_layout_paths
+
+  if is_install_dir "$INSTALL_DIR"; then
     MODE=update
     info "ComfyUI finns redan i $INSTALL_DIR – uppdaterar och konfigurerar om."
+  elif is_comfyui_checkout "$INSTALL_DIR"; then
+    die "$INSTALL_DIR är en ComfyUI-checkout men ingen installation i den här layouten (väntade $INSTALL_DIR/data/ComfyUI). Välj en tom eller ny katalog."
   elif [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR finns redan men är ingen ComfyUI-installation. Välj en tom eller ny katalog."
   else
@@ -467,7 +497,7 @@ choose_install_dir() {
 
 choose_channel() {
   local current
-  current=$(config_get "$INSTALL_DIR/$CONFIG_NAME" channel stable)
+  current=$(config_get "$CONFIG_FILE" channel stable)
   if [ -z "$CHANNEL" ]; then
     CHANNEL=$(ask "Kanal: 'stable' (senaste release) eller 'latest' (senaste commit)?" "$current")
   fi
@@ -484,8 +514,8 @@ choose_channel() {
 clone_comfyui() {
   [ "$MODE" = install ] || return 0
   info "Klonar ComfyUI från $COMFYUI_REPO_URL …"
-  mkdir -p "$INSTALL_DIR"
-  git clone "$COMFYUI_REPO_URL" "$INSTALL_DIR" \
+  mkdir -p "$DATA_DIR"
+  git clone "$COMFYUI_REPO_URL" "$COMFY_DIR" \
     || die "Kunde inte klona ComfyUI. Kontrollera nätverksanslutningen."
   ok "ComfyUI klonad."
 }
@@ -494,17 +524,17 @@ clone_comfyui() {
 #  Python-miljö och PyTorch
 # ----------------------------------------------------------------------------
 create_venv() {
-  local venv_py="$INSTALL_DIR/.venv/bin/python"
+  local venv_py="$VENV_DIR/bin/python"
   if [ -x "$venv_py" ] && "$venv_py" -c 'import sys' 2>/dev/null; then
-    ok "Pythonmiljö finns redan (.venv)."
+    ok "Pythonmiljö finns redan (data/.venv)."
     return
   fi
-  if [ -d "$INSTALL_DIR/.venv" ]; then
-    warn "Befintlig .venv fungerar inte (t.ex. efter Python-uppgradering) – skapas om."
-    rm -rf "$INSTALL_DIR/.venv"
+  if [ -d "$VENV_DIR" ]; then
+    warn "Befintlig data/.venv fungerar inte (t.ex. efter Python-uppgradering) – skapas om."
+    rm -rf "$VENV_DIR"
   fi
-  info "Skapar Pythonmiljö i $INSTALL_DIR/.venv …"
-  "$PYTHON_BIN" -m venv "$INSTALL_DIR/.venv" || die "Kunde inte skapa venv."
+  info "Skapar Pythonmiljö i $VENV_DIR …"
+  "$PYTHON_BIN" -m venv "$VENV_DIR" || die "Kunde inte skapa venv."
   "$venv_py" -m pip install --quiet --upgrade pip || die "Kunde inte uppgradera pip."
   ok "Pythonmiljö skapad."
 }
@@ -538,9 +568,9 @@ detect_torch_backend() {
 }
 
 install_torch() {
-  local venv_py="$INSTALL_DIR/.venv/bin/python"
+  local venv_py="$VENV_DIR/bin/python"
   local previous explicit=false
-  previous=$(config_get "$INSTALL_DIR/$CONFIG_NAME" torch_backend "")
+  previous=$(config_get "$CONFIG_FILE" torch_backend "")
 
   if [ -n "$TORCH_BACKEND" ] && [ "$TORCH_BACKEND" != auto ]; then
     explicit=true
@@ -585,7 +615,7 @@ install_torch() {
 #  Modellsökvägar: extra_model_paths.yaml -> origin/models
 # ----------------------------------------------------------------------------
 setup_model_paths() {
-  local yaml="$INSTALL_DIR/extra_model_paths.yaml" entry key folders folder
+  local yaml="$COMFY_DIR/extra_model_paths.yaml" entry key folders folder
   info "Skapar modellmappar i $ORIGIN/models …"
 
   # Säkerhetskopiera en egen (ej genererad) fil innan den skrivs över
@@ -637,7 +667,8 @@ write_start_script() {
 #    --update-only   uppdatera (git + pip + frontend) men starta inte
 #    Övriga argument skickas vidare till ComfyUI, t.ex. --cpu eller --listen.
 #
-#  Kanal och origin läses från _CONFIG.json i samma katalog.
+#  Allt utom detta skript ligger i ./data: ComfyUI/, .venv/ och _CONFIG.json
+#  (kanal, origin m.m.).
 #  Utdata hamnar i /tmp/ComfyUI_output, som raderas när ComfyUI avslutas.
 # =============================================================================
 
@@ -656,10 +687,12 @@ script_path=${BASH_SOURCE[0]}
 if command -v realpath >/dev/null 2>&1; then
   script_path=$(realpath "$script_path")
 fi
-COMFY_DIR=$(cd -P "$(dirname "$script_path")" && pwd)
-readonly COMFY_DIR
-readonly CONFIG_FILE="$COMFY_DIR/_CONFIG.json"
-readonly VENV_PY="$COMFY_DIR/.venv/bin/python"
+INSTALL_DIR=$(cd -P "$(dirname "$script_path")" && pwd)
+readonly INSTALL_DIR
+readonly DATA_DIR="$INSTALL_DIR/data"
+readonly COMFY_DIR="$DATA_DIR/ComfyUI"
+readonly CONFIG_FILE="$DATA_DIR/_CONFIG.json"
+readonly VENV_PY="$DATA_DIR/.venv/bin/python"
 
 [ -x "$VENV_PY" ] || die "Pythonmiljön saknas ($VENV_PY). Kör SETUP_COMFYUI.sh först."
 [ -f "$CONFIG_FILE" ] || die "$CONFIG_FILE saknas. Kör SETUP_COMFYUI.sh först."
@@ -760,7 +793,7 @@ update_git() {
 #  Pythonberoenden – installeras bara om requirements.txt har ändrats
 # ----------------------------------------------------------------------------
 update_requirements() {
-  local req="$COMFY_DIR/requirements.txt" stamp="$COMFY_DIR/.venv/.requirements.sha256"
+  local req="$COMFY_DIR/requirements.txt" stamp="$DATA_DIR/.venv/.requirements.sha256"
   local new_hash old_hash=""
   new_hash=$("$VENV_PY" -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$req")
   [ -f "$stamp" ] && old_hash=$(cat "$stamp")
@@ -800,7 +833,8 @@ setup_frontend_node() {
 # Genererad av _START_COMFYUI.sh – skrivs över vid varje start.
 #
 # Serverar origin/frontend live (ingen kopiering) under en egen URL, som
-# standard /e/. Sökvägarna läses från _CONFIG.json i ComfyUI-katalogen.
+# standard /e/. Sökvägarna läses från _CONFIG.json bredvid ComfyUI-katalogen
+# (<installation>/data/_CONFIG.json).
 # Ingen WEB_DIRECTORY: sidornas .js-filer ska inte laddas in i ComfyUI.
 import json
 import logging
@@ -814,7 +848,7 @@ _LOG_PREFIX = "[origin_frontend]"
 
 def _register_frontend_route():
     comfy_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    config_path = os.path.join(comfy_dir, "_CONFIG.json")
+    config_path = os.path.join(os.path.dirname(comfy_dir), "_CONFIG.json")
     try:
         with open(config_path, encoding="utf-8") as f:
             config = json.load(f)
@@ -922,12 +956,10 @@ START_EOF
 
 # Håll "git status" ren: genererade filer ska inte synas som ändringar
 exclude_generated_files() {
-  local exclude="$INSTALL_DIR/.git/info/exclude" name
+  local exclude="$COMFY_DIR/.git/info/exclude" entry="/extra_model_paths.yaml.bak"
   mkdir -p "$(dirname "$exclude")"
   touch "$exclude"
-  for name in "/$START_SCRIPT_NAME" "/$CONFIG_NAME" "/extra_model_paths.yaml.bak"; do
-    grep -qxF "$name" "$exclude" || printf '%s\n' "$name" >>"$exclude"
-  done
+  grep -qxF "$entry" "$exclude" || printf '%s\n' "$entry" >>"$exclude"
 }
 
 # ----------------------------------------------------------------------------
@@ -957,7 +989,7 @@ main() {
   printf '      %q\n' "$INSTALL_DIR/$START_SCRIPT_NAME"
   if [ -d "$ORIGIN/frontend" ]; then
     local url_path
-    url_path=$(config_get "$INSTALL_DIR/$CONFIG_NAME" frontend_url_path /e | sed 's#^/*##; s#/*$##')
+    url_path=$(config_get "$CONFIG_FILE" frontend_url_path /e | sed 's#^/*##; s#/*$##')
     echo "    Egen frontend: http://127.0.0.1:8188/${url_path:-e}/"
   fi
   return 0
