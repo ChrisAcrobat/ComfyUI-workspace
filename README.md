@@ -39,11 +39,20 @@ origin is found from the script's real path, so calling the script through a sym
 
 ```bash
 cd my-comfy
-./SETUP_COMFYUI.sh                 # asks for install folder and channel
+./SETUP_COMFYUI.sh                 # asks for install folder (picker or terminal) and channel
 ComfyUI/_START_COMFYUI.sh          # update + start
 ```
 
 Then open <http://127.0.0.1:8188>.
+
+### Choosing the install folder
+
+When setup runs in a terminal with no `INSTALL_DIR` and no `-y`:
+
+- **With a desktop** (`DISPLAY`/`WAYLAND_DISPLAY` set and `zenity` or `kdialog` installed, or macOS via `osascript`), a folder picker opens in origin. **Pick the folder that should *contain* ComfyUI**; setup creates the `ComfyUI` subfolder in it. For example, picking `~/AI` installs to `~/AI/ComfyUI`. Two exceptions, so you never get `ComfyUI/ComfyUI`: if you pick an existing ComfyUI install, or an empty folder named `ComfyUI`, that folder is used as-is. The chosen path is printed (`ComfyUI installeras i …`).
+- **Cancelling the picker** doesn't abort; setup asks in the terminal instead.
+- **In the terminal**, the default (`<origin>/ComfyUI`) is pre-filled and editable, and **Tab completes paths**. Press Enter to accept. `~` and relative paths work. On macOS's old bash 3.2, the default is shown in brackets instead of pre-filled.
+- `--no-gui` always uses the terminal. `--gui` uses the picker even if no `DISPLAY` is detected (e.g. over SSH with X forwarding). zenity/kdialog are never installed automatically.
 
 To run without any questions:
 
@@ -64,6 +73,7 @@ To run without any questions:
 | `-c`, `--channel stable\|latest` | `stable` = newest release tag (default), `latest` = newest commit on `master`. |
 | `-t`, `--torch BACKEND` | PyTorch build: `auto` (default), `cuda`, `cuda-legacy`, `rocm`, `xpu`, `cpu`, `default`, `skip`. Can also be set with the environment variable `COMFY_TORCH_BACKEND`. |
 | `-y`, `--yes` | Ask nothing, use defaults. The same happens automatically when stdin is not a terminal. |
+| `--gui` / `--no-gui` | Force / disable the graphical folder picker (default: used when a desktop is available). |
 | `-h`, `--help` | Show help. |
 
 Giving `INSTALL_DIR` only skips the folder question. In a terminal you are still asked for the channel unless you also pass `-c` or `-y`.
@@ -243,7 +253,7 @@ ComfyUI/
 - **Two instances share `/tmp/ComfyUI_output`.** When one exits, it deletes the other's output. The folder is also deleted if you pass your own `--output-directory`.
 - **`ComfyUI/models/` is still scanned** as well as `origin/models/`. New downloads default to `origin/models/`.
 - **ComfyUI-Manager is not installed.** `--enable-manager` also needs `ComfyUI/.venv/bin/python -m pip install -r ComfyUI/manager_requirements.txt`.
-- **Tested on Linux (Debian 13) with CPU PyTorch only.** NVIDIA/AMD detection and macOS are untested. Automatic installation was tested for real with `apt` on Debian 13; the `dnf`/`pacman`/`zypper`/`brew` paths are untested. If the auto-detected build is wrong, re-run with e.g. `-t cuda-legacy` or `-t cpu`.
+- **Tested on Linux (Debian 13) with CPU PyTorch only.** The folder picker was tested with real zenity (under Xvfb); kdialog and the macOS picker are untested. NVIDIA/AMD detection and macOS are untested. Automatic installation was tested for real with `apt` on Debian 13; the `dnf`/`pacman`/`zypper`/`brew` paths are untested. If the auto-detected build is wrong, re-run with e.g. `-t cuda-legacy` or `-t cpu`.
 - **Pages at `/e/`:**
   - If `origin/frontend/` is created while ComfyUI is running, or `frontend_url_path` is changed, restart ComfyUI.
   - There is no folder listing; only `index.html` is served automatically.

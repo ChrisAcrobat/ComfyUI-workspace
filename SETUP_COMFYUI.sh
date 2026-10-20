@@ -12,6 +12,8 @@
 #    -t, --torch BACKEND           auto (standard), cuda, cuda-legacy, rocm,
 #                                  xpu, cpu, default, skip
 #    -y, --yes                     fråga ingenting, använd standardvärden
+#    --gui / --no-gui              tvinga på / stäng av grafisk mappväljare
+#                                  (standard: används om skrivbord finns)
 #    -h, --help                    visa hjälp
 #
 #  Saknas git, Python >= 3.10 eller venv erbjuder skriptet att installera dem
@@ -120,6 +122,7 @@ CHANNEL=""
 TORCH_BACKEND="${COMFY_TORCH_BACKEND:-}"
 INTERACTIVE=true
 [ -t 0 ] || INTERACTIVE=false
+GUI_MODE=auto       # auto | on | off  (mappväljare för installationskatalogen)
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -128,6 +131,8 @@ while [ $# -gt 0 ]; do
     -t|--torch)     [ $# -ge 2 ] || die "$1 kräver ett värde"; TORCH_BACKEND=$2; shift 2 ;;
     --torch=*)      TORCH_BACKEND=${1#*=}; shift ;;
     -y|--yes)       INTERACTIVE=false; shift ;;
+    --gui)          GUI_MODE=on; shift ;;
+    --no-gui)       GUI_MODE=off; shift ;;
     -h|--help)      usage; exit 0 ;;
     -*)             die "Okänd flagga: $1 (se --help)" ;;
     *)              [ -z "$INSTALL_DIR" ] || die "Endast en installationskatalog kan anges"
@@ -371,9 +376,75 @@ is_comfyui_checkout() {
   [ -d "$1/.git" ] && [ -f "$1/main.py" ] && [ -f "$1/comfyui_version.py" ]
 }
 
+# Grafisk mappväljare. Användaren väljer mappen DÄR ComfyUI ska ligga.
+# Skriver ut den valda mappen. Returkod 2 = ingen väljare/inget skrivbord,
+# annan returkod = användaren avbröt.
+pick_folder_gui() {
+  local start=$1 title="Välj mappen där ComfyUI ska installeras (undermappen ComfyUI skapas där)"
+  if [ "$(uname -s)" = Darwin ]; then
+    command -v osascript >/dev/null 2>&1 || return 2
+    osascript - "$start" "$title" 2>/dev/null <<'APPLESCRIPT'
+on run argv
+  set startDir to POSIX file (item 1 of argv) as alias
+  return POSIX path of (choose folder with prompt (item 2 of argv) default location startDir)
+end run
+APPLESCRIPT
+    return
+  fi
+  if [ "$GUI_MODE" = auto ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    return 2
+  fi
+  if command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --directory --title="$title" --filename="$start/" 2>/dev/null
+  elif command -v kdialog >/dev/null 2>&1; then
+    kdialog --title "$title" --getexistingdirectory "$start" 2>/dev/null
+  else
+    return 2
+  fi
+}
+
+# Terminalfråga med Tab-komplettering; standardvärdet är förifyllt (bash >= 4)
+ask_path() {
+  local prompt=$1 default=$2 answer=""
+  if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then
+    read -r -e -i "$default" -p "$prompt: " answer </dev/tty || true
+  else
+    read -r -e -p "$prompt [$default]: " answer </dev/tty || true   # macOS bash 3.2
+  fi
+  printf '%s\n' "${answer:-$default}"
+}
+
 choose_install_dir() {
+  local default="$ORIGIN/ComfyUI" start picked rc
+  if [ -z "$INSTALL_DIR" ] && [ "$INTERACTIVE" = true ] && [ "$GUI_MODE" != off ]; then
+    start=$(dirname "$default")
+    [ -d "$start" ] || start=$ORIGIN
+    rc=0
+    picked=$(pick_folder_gui "$start") || rc=$?
+    if [ "$rc" -eq 0 ] && [ -n "$picked" ]; then
+      picked=${picked%/}
+      # Vald mapp är redan ComfyUI, eller en tom mapp som heter ComfyUI -> använd den.
+      # Annars skapas undermappen ComfyUI i den valda mappen.
+      if is_comfyui_checkout "$picked" \
+         || { [ "$(basename "$picked")" = ComfyUI ] && [ -z "$(ls -A "$picked" 2>/dev/null)" ]; }; then
+        INSTALL_DIR=$picked
+      else
+        INSTALL_DIR="$picked/ComfyUI"
+      fi
+    elif [ "$rc" -eq 2 ]; then
+      if [ "$GUI_MODE" = on ]; then
+        warn "Ingen grafisk mappväljare hittades (zenity, kdialog eller osascript) – frågar i terminalen."
+      fi
+    else
+      info "Mappväljaren avbröts – frågar i terminalen i stället."
+    fi
+  fi
   if [ -z "$INSTALL_DIR" ]; then
-    INSTALL_DIR=$(ask "Var ska ComfyUI installeras?" "$ORIGIN/ComfyUI")
+    if [ "$INTERACTIVE" = true ]; then
+      INSTALL_DIR=$(ask_path "Var ska ComfyUI installeras? (Tab kompletterar)" "$default")
+    else
+      INSTALL_DIR=$default
+    fi
   fi
   # Expandera ~ och gör sökvägen absolut
   case $INSTALL_DIR in
