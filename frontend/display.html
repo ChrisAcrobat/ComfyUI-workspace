@@ -1,0 +1,558 @@
+<html>
+	<head>
+		<style>
+			:root {
+				user-select: none;
+				background: black;
+				scrollbar-width: none;
+			}
+			body {
+				margin: 0;
+			}
+
+			#imageWrapper {
+				scrollbar-width: none;
+			}
+			#imageWrapper:has(.image-container.stacking-horizontally) {
+				display: flex;
+			}
+			.image-container {
+				position: relative;
+			}
+			.image-container.stacking-vertically {
+				vertical-align: top;
+				float: left;
+			}
+
+			.image-container:hover .btn-hide {
+				display: unset;
+			}
+			.btn-hide {
+				display: none;
+				position: absolute;
+				top: 8px;
+				right: 8px;
+			}
+
+			.image-container:hover .prompt-container {
+				display: unset;
+			}
+			.prompt-container {
+				display: none;
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				margin: 8px;
+				width: calc(100% - 16px);
+				font-size: large;
+				background-color: aliceblue;
+				opacity: 75%;
+			}
+			.prompt-item {
+				margin-top: 18px;
+				margin-left: 18px;
+				margin-right: 18px;
+			}
+			.prompt-item>p {
+				margin-top: 0;
+				user-select: text;
+			}
+
+			#settings {
+				position: fixed;
+				bottom: 0px;
+				right: 0px;
+				background: white;
+				margin: 0;
+				padding: 4px;
+				opacity: 0;
+			}
+			#settings:hover {
+				opacity: 1;
+			}
+			#settings fieldset {
+				border-width: 0;
+				border-top-width: unset;
+				padding-left: 0;
+				padding-right: 0;
+				padding-bottom: 0;
+			}
+			#settings fieldset legend {
+				margin-left: 12;
+			}
+			#divImageWidthHeight {
+				position: relative;
+			}
+			#divPixelCount {
+				position: absolute;
+				right: 0px;
+				bottom: 0;
+			}
+
+			.hidden {
+				display: none;
+			}
+		</style>
+		<script type="text/javascript">
+			'use strict'
+			function onload(){
+				function refreshHistory(){
+					fetch('/history').then(response=>response.json()).then(result => {
+						const historyKeys = Object.keys(result);
+						for (const keyResult of Object.keys(result)) {
+							const history = result[keyResult];
+							for (const keyOutputs of Object.keys(history.outputs)) {
+								const output = history.outputs[keyOutputs];
+								let index = 0;
+								for (const keyImages of Object.keys(output.images)) {
+									const imageResult = output.images[keyImages];
+									if(imageResult.type === 'temp'){
+										continue;
+									}
+									const animated = output.animated ? output.animated[index++] : false;
+									let imageURL = '/view?filename='+imageResult['filename']+'&animated='+animated;
+									for (const i of imageWrapper.childNodes) {
+										if(images.find(i => i.src.endsWith(imageURL))){
+											imageURL = null;
+											break;
+										}
+									}
+									if(imageURL){
+										const start = history.status.messages.find(m => m[0] === 'execution_start')[1].timestamp;
+										const done = history.status.messages.find(m => m[0] === 'execution_success')[1].timestamp;
+										executionTime += done - start;
+										let uptime = ''; // Lookup: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Duration
+										const time = new Date(executionTime);
+										const hours = time.getUTCHours();
+										if(hours){
+											uptime += hours.toString().padStart(2, '0')+':';
+										}
+										const minutes = time.getUTCMinutes();
+										if(hours && minutes){
+											uptime += minutes.toString().padStart(2, '0')+':';
+										}
+										document.getElementById('spnExecutionTime').innerText = uptime + time.getUTCSeconds().toString().padStart(2, '0');
+										if(!startUpTime){
+											startUpTime = start
+										}
+										const imageContainer = document.createElement('div');
+										imageContainer.id = 'container-'+imageURL;
+										imageContainer.classList.add('image-container');
+										const image = new Image();
+										images.push(image);
+										imageContainer.appendChild(image);
+										const promptContainer = document.createElement('div');
+										promptContainer.classList.add('prompt-container');
+										imageContainer.appendChild(promptContainer);
+										for(const prompt of history.prompt){
+											if(typeof prompt === 'object'){
+												for (const keyPrompt of Object.keys(prompt)){
+													const p = prompt[keyPrompt];
+													if(p.class_type === 'CLIPTextEncode' && p.inputs.text.trim()){
+														const promptItem = document.createElement('div');
+														promptItem.classList.add('prompt-item');
+														promptContainer.appendChild(promptItem);
+														let paragraph = document.createElement('label');
+														paragraph.innerText = 'Prompt '+keyPrompt;
+														promptItem.appendChild(paragraph);
+														paragraph = document.createElement('p');
+														let code = document.createElement('code');
+														code.innerText = p.inputs.text
+														paragraph.appendChild(code);
+														promptItem.appendChild(paragraph);
+													}
+												}
+											}
+										}
+										if(inputPromptPopup.checked){
+											post(promptContainer);
+										}else if(inputSplashPrompt.valueAsNumber){
+											promptContainer.style.display = 'unset';
+											setTimeout(()=>{
+												promptContainer.style.display = null;
+											}, 1000*inputSplashPrompt.valueAsNumber);
+										}
+										const btnHide = document.createElement('button');
+										btnHide.classList.add('btn-hide');
+										btnHide.innerHTML = 'Hide';
+										btnHide.onclick = () => {
+											imageContainer.classList.add('hidden');
+											if(inputPromptPopup.__promptWindow){
+												inputPromptPopup.__promptWindow.postMessage({type: 'Hide', message: {id: promptContainer.parentElement.id}}, location.origin);
+											}
+											resizeAll();
+										};
+										imageContainer.appendChild(btnHide);
+										image.src = imageURL;
+										image.onload = ()=>{
+											updateImageCount();
+											resize(image);
+										}
+										image.onerror = ()=>{
+											imageContainer.classList.add('hidden');
+										};
+										imageWrapper.prepend(imageContainer);
+										if(inputScrollToTop.checked){
+											scrollTo({top: 0, left: 0, behavior: 'smooth'});
+										}
+									}
+								}
+							}
+						}
+					}).finally(()=>{
+						requestAnimationFrame(refreshHistory);
+					});
+				}
+				let lastQueueCounter = null;
+				function refreshQueueCounter(){
+					fetch('/queue').then(response=>response.json()).then(result => {
+						const queueCounter = result.queue_pending.length + result.queue_running.length;
+						if(lastQueueCounter !== queueCounter){
+							lastQueueCounter = queueCounter;
+							document.title = 'Queue: '+queueCounter;
+							if(inputPromptPopup.__promptWindow){
+								inputPromptPopup.__promptWindow.postMessage({type: 'QueueCounter', message: queueCounter}, location.origin);
+							}
+						}
+					}).finally(()=>{
+						requestAnimationFrame(refreshQueueCounter);
+					});
+				}
+				let imageChange = 0;
+				function helpers(){
+					requestAnimationFrame(helpers);
+					if(startUpTime){
+						let uptime = ''; // Lookup: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/Duration
+						const time = new Date(Date.now() - startUpTime);
+						const hours = time.getUTCHours();
+						if(hours){
+							uptime += hours.toString().padStart(2, '0')+':';
+						}
+						const minutes = time.getUTCMinutes();
+						if(hours && minutes){
+							uptime += minutes.toString().padStart(2, '0')+':';
+						}
+						document.getElementById('spnUpTime').innerText = uptime + time.getUTCSeconds().toString().padStart(2, '0');
+						
+					}
+					// Scroll service
+					if(!inputScrollToNextImage.checked || Date.now() < wheelEvent_time + 1000){
+						return;
+					}
+					const tops = {};
+					for(const imageContainer of document.getElementsByClassName('image-container')){
+						const top = imageContainer.getBoundingClientRect().top;
+						tops[top] = imageContainer;
+					}
+					const keys = Object.keys(tops);
+					for(const t of keys){
+						const ic = tops[t];
+						if(0 < parseFloat(t) + ic.offsetHeight/2){
+							const index = keys.indexOf(t) + imageChange;
+							let imageContainer = tops[keys[index]];
+							if(!imageContainer){
+								imageContainer = tops[imageChange < 0 ? keys[0] : keys[keys.length-1]];
+							}
+							// TODO: If imageChange is 0 (if scroll is used, check if image fit screen before call scrollIntoView)
+							imageChange = 0;
+							imageContainer.scrollIntoView({behavior: 'smooth'});
+							wheelEvent_time = NaN;
+							break;
+						}
+					}
+				}
+				function post(promptContainer){
+					if(inputPromptPopup.__promptWindow){
+						inputPromptPopup.__promptWindow.postMessage({type: 'Add', message: {id: promptContainer.parentElement.id, data: promptContainer.innerHTML}}, location.origin);
+					}
+				}
+				function updateImageCount(){
+					let count = ''+images.filter(i => !i.parentElement.classList.contains('hidden')).length;
+					const hidden = images.filter(i => i.parentElement.classList.contains('hidden')).length;
+					if(hidden){
+						count += ' (Hidden: '+hidden+')';
+					}
+					document.getElementById('spnNumberOfImages').innerText = count;
+				}
+				function updateHelpers(){
+					function gcd(a, b){
+						return b === 0 ? a : gcd(b, a%b);
+					}
+					updateImageCount();
+					const imageWidth = document.body.clientWidth / inputImageWidth.valueAsNumber;
+					const width = Math.ceil(imageWidth/8)*8;
+					const height = Math.floor(document.body.clientHeight/8/inputImageHeight.valueAsNumber)*8;
+					const d = [width, height].reduce(gcd);
+					const lWidth = Math.ceil(width/d)*8;
+					const lHeight = Math.floor(height/d)*8;
+					let c = 0;
+					let min = 0;
+					while(min < 16){
+						c++;
+						min += Math.min(lWidth, lHeight)
+					}
+					const minStep = (width / lWidth) - c;
+					inputImageScale.min = -minStep;
+					const w = width + lWidth*inputImageScale.valueAsNumber;
+					const h = height + lHeight*inputImageScale.valueAsNumber;
+					const ratio = w / width;
+					document.getElementById('spnImageWidth').innerText = w;
+					document.getElementById('spnImageHeight').innerText = h;
+					document.getElementById('spnImageWidthPercent').innerText = '('+Math.round(ratio*100)+' %)';
+					document.getElementById('spnPixelCount').innerText = w*h;
+				}
+				function resizeAll(){
+					updateHelpers();
+					for(const image of images.filter(i => !i.parentElement.classList.contains('hidden'))) {
+						resize(image);
+					}
+				}
+				function resize(image){
+					if(inputStacking.value === 'horizontally'){
+						image.parentElement.classList.add('stacking-horizontally');
+						image.parentElement.classList.remove('stacking-vertically');
+						image.style.width = null;
+						image.style.height = document.body.clientHeight;
+					}else{
+						image.parentElement.classList.add('stacking-vertically');
+						image.parentElement.classList.remove('stacking-horizontally');
+						const multiplier = inputImageWidth.valueAsNumber;
+						const imageStyle = getComputedStyle(image);
+						const zoom = document.body.clientWidth / (image.offsetWidth*multiplier);
+						image.style.height = null;
+						image.style.width = document.body.clientWidth/multiplier;
+					}
+				}
+				function inputChange(event){
+					localStorage.setItem('inputStacking', inputStacking.value);
+					localStorage.setItem('inputScrollToTop', inputScrollToTop.checked);
+					localStorage.setItem('inputScrollToNextImage', inputScrollToNextImage.checked);
+					localStorage.setItem('inputImageWidth', inputImageWidth.valueAsNumber);
+					localStorage.setItem('inputImageScale', inputImageScale.valueAsNumber);
+					localStorage.setItem('inputImageHeight', inputImageHeight.valueAsNumber);
+					localStorage.setItem('inputSplashPrompt', inputSplashPrompt.valueAsNumber);
+					inputImageWidth.disabled = inputStacking.value !== 'vertically';
+					resizeAll();
+				}
+				let startUpTime;
+				let executionTime = 0;
+				const images = [];
+				let v;
+				const imageWrapper = document.getElementById('imageWrapper');
+				(document.scrollingElement || document.documentElement).addEventListener('wheel', event => {
+					if (!event.deltaY) {
+						return;
+					}
+					event.currentTarget.scrollLeft += event.deltaY + event.deltaX;
+				});
+
+				const inputStacking = document.getElementById('inputStacking');
+				inputStacking.addEventListener('change', inputChange);
+				if(localStorage.getItem('inputStacking')){
+					inputStacking.value = localStorage.getItem('inputStacking');
+				}
+
+				const inputScrollToTop = document.getElementById('inputScrollToTop');
+				inputScrollToTop.addEventListener('change', inputChange);
+				inputScrollToTop.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToTop'));
+
+				const inputScrollToNextImage = document.getElementById('inputScrollToNextImage');
+				inputScrollToNextImage.addEventListener('change', inputChange);
+				//inputScrollToNextImage.checked = [null, 'true'].includes(localStorage.getItem('inputScrollToNextImage'));
+
+				const inputSplashPrompt = document.getElementById('inputSplashPrompt');
+				inputSplashPrompt.addEventListener('change', inputChange);
+				v = parseFloat(localStorage.getItem('inputSplashPrompt'));
+				if(isNaN(v)){
+					v = 3;
+				}
+				inputSplashPrompt.valueAsNumber = v;
+
+				const inputPromptPopup = document.getElementById('inputPromptPopup');
+				addEventListener('beforeunload', (event)=>{
+					if(inputPromptPopup.__promptWindow){
+						inputPromptPopup.__promptWindow.close();
+					}
+				});
+				inputPromptPopup.addEventListener('change', ()=>{
+					inputSplashPrompt.disabled = inputPromptPopup.checked;
+					if(inputPromptPopup.checked){
+						inputPromptPopup.__promptWindow = open('prompthistory.html', 'Prompt history', 'popup');
+						inputPromptPopup.__promptWindow.addEventListener('load', ()=>{
+							lastQueueCounter = null;
+							[...document.getElementsByClassName('prompt-container')].reverse().forEach(promptContainer => post(promptContainer));
+							inputPromptPopup.__promptWindow.addEventListener('unload', ()=>{
+								inputPromptPopup.checked = false;
+								inputPromptPopup.dispatchEvent(new Event('change'));
+							});
+						});
+						inputPromptPopup.__promptWindow.addEventListener('message', messageEvent => {
+							if(messageEvent.data.type === 'Click'){
+								const imageContainer = document.getElementById(messageEvent.data.id);
+								imageContainer.scrollIntoView({behavior: 'smooth'});
+								[...imageContainer.getElementsByClassName('prompt-container')].forEach(promptContainer => {
+									promptContainer.style.display = 'unset';
+									setTimeout(()=>{
+										promptContainer.style.display = null;
+									}, 2000);
+								});
+							}
+						});
+					}else{
+						inputPromptPopup.__promptWindow.close();
+					}
+					inputChange();
+				});
+
+				const inputImageWidth = document.getElementById('inputImageWidth');
+				inputImageWidth.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageWidth'));
+				if(isNaN(v)){
+					v = 2;
+				}
+				inputImageWidth.valueAsNumber = v;
+
+				const inputImageHeight = document.getElementById('inputImageHeight');
+				inputImageHeight.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageHeight'));
+				if(isNaN(v)){
+					v = 2;
+				}
+				inputImageHeight.valueAsNumber = v;
+
+				const inputImageScale = document.getElementById('inputImageScale');
+				inputImageScale.addEventListener('change', inputChange);
+				v = parseInt(localStorage.getItem('inputImageScale'));
+				if(isNaN(v)){
+					v = 0;
+				}
+				inputImageScale.valueAsNumber = v;
+
+				inputChange();
+				addEventListener('dblclick', mouseEvent => {
+					if(!['BODY', 'IMG'].includes(mouseEvent.srcElement.tagName)){
+						return;
+					}
+					if(!document.fullscreenElement){
+						document.documentElement.requestFullscreen();
+					}else if(document.exitFullscreen){
+						document.exitFullscreen();
+					}
+				});
+				let wheelEvent_time = NaN;
+				addEventListener('wheel', wheelEvent => {
+					wheelEvent_time = Date.now();
+				});
+				addEventListener('keydown', keyEvent => {
+					const t = imageChange;
+					if(keyEvent.key === 'ArrowUp'){
+						imageChange -= 1;
+					}else if(keyEvent.key === 'ArrowDown'){
+						imageChange += 1;
+					}
+					if(t !== imageChange){
+						wheelEvent_time = Date.now();
+					}
+				});
+				addEventListener('resize', resizeAll);
+				requestAnimationFrame(refreshHistory);
+				requestAnimationFrame(refreshQueueCounter);
+				requestAnimationFrame(helpers);
+			}
+		</script>
+	</head>
+	<body onload="onload()">
+		<div id="imageWrapper"></div>
+		<form id="settings">
+			<div>
+				<label for="inputStacking">
+					Images stacking strategy:
+				</label>
+				<select id="inputStacking">
+					<option value="horizontally">Horizontally</option>
+					<option value="vertically">Vertically</option>
+				  </select>
+			</div>
+			<div>
+				<label for="inputImageWidth">
+					Images per row:
+				</label>
+				<input id="inputImageWidth" name="Image width" type="number" step="any" min="1"/>
+			</div>
+			<div>
+				<label for="inputScrollToTop">
+					Scroll to top:
+				</label>
+				<input id="inputScrollToTop" name="Scroll to top" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputScrollToNextImage">
+					Scroll to next image:
+				</label>
+				<input id="inputScrollToNextImage" name="Scroll to next image" type="checkbox"/>
+			</div>
+			<div>
+				<label for="inputSplashPrompt">
+					Splash prompt (seconds):
+				</label>
+				<input id="inputSplashPrompt" name="Splash prompt" type="number" step="any" min="0"/>
+			</div>
+			<div>
+				<label for="inputPromptPopup">
+					Open prompts in separate window:
+				</label>
+				<input id="inputPromptPopup" name="Open prompts in separate window" type="checkbox"/>
+			</div>
+			<fieldset>
+				<legend>
+					Helpers
+				</legend>
+				<div>
+					<label for="inputImageScale">
+						Image scale:
+					</label>
+					<input id="inputImageScale" name="Image scale" type="number" step="1"/>
+					<span id="spnImageWidthPercent"></span>
+				</div>
+				<div>
+					<label for="inputImageHeight">
+						Images per column:
+					</label>
+					<input id="inputImageHeight" name="Image per column" type="number" step="any" min="1"/>
+				</div>
+				<div id="divImageWidthHeight">
+					<div>
+						Image width: <span id="spnImageWidth"></span>
+						<br>Image height: <span id="spnImageHeight"></span>
+					</div>
+					<div id="divPixelCount">
+						Pixel count: <span id="spnPixelCount"></span>
+					</div>
+				</div>
+			</fieldset>
+			<fieldset>
+				<legend>
+					Information
+				</legend>
+				<div>
+					<label for="spnNumberOfImages">
+						Number of images:
+					</label>
+					<span id="spnNumberOfImages"></span>
+				</div>
+				<div>
+					<label for="spnUpTime">
+						Up-time:
+					</label>
+					<span id="spnUpTime"></span>
+				</div>
+				<div>
+					<label for="spnExecutionTime">
+						Execution time:
+					</label>
+					<span id="spnExecutionTime"></span>
+				</div>
+			</fieldset>
+		</form>
+	</body>
+</html>
